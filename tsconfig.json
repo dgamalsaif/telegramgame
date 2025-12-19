@@ -15,7 +15,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": []
   },
-  "include": ["index.tsx", "App.tsx", "types.ts", "services/**/*", "vite.config.ts"]
+  "include": ["index.tsx", "App.tsx", "types.ts", "services/**/*"]
 }
