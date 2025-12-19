@@ -1,4 +1,3 @@
-
 export interface Platform {
   id: string;
   name: string;
@@ -53,18 +52,14 @@ export interface SearchParams {
   searchType: SearchType;
 }
 
-// تعريف يدوي لـ process لتجنب أخطاء TypeScript في بيئة المتصفح
+// تعريف بسيط لإسكات أخطاء TypeScript المتعلقة بـ process.env
 declare global {
   interface Window {
     process: {
       env: {
-        [key: string]: string | undefined;
+        API_KEY?: string;
+        [key: string]: any;
       };
     };
   }
-}
-
-// تأكيد وجود process.env في النطاق العالمي
-if (typeof (window as any).process === 'undefined') {
-  (window as any).process = { env: {} };
 }
