@@ -15,7 +15,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": []
+    "types": ["node"]
   },
   "include": ["index.tsx", "App.tsx", "types.ts", "services/**/*"]
 }

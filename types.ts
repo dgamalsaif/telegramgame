@@ -6,6 +6,13 @@ export interface Platform {
   color: string;
 }
 
+export interface UserProfile {
+  agentName: string;
+  telegramHandle: string;
+  operationalId: string;
+  isRegistered: boolean;
+}
+
 export interface TelegramGroup {
   id: string;
   title: string;
@@ -50,9 +57,9 @@ export interface SearchParams {
   platforms: string[];
   mode: SearchMode;
   searchType: SearchType;
+  agentContext?: UserProfile;
 }
 
-// تعريف بسيط لإسكات أخطاء TypeScript المتعلقة بـ process.env
 declare global {
   interface Window {
     process: {
