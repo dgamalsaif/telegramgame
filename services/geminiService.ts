@@ -1,14 +1,9 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { SearchResult, TelegramGroup, SearchParams } from "../types";
 
-/**
- * دالة متقدمة لتحليل JSON تضمن استخراج البيانات حتى في حال وجود نصوص إضافية من النموذج
- */
 const parseSafeJSON = (text: string): any => {
   try {
     let cleanText = text.trim();
-    // البحث عن أول '[' أو '{' وآخر ']' أو '}'
     const jsonMatch = cleanText.match(/[\{\[].*[\}\]]/s);
     if (jsonMatch) {
       cleanText = jsonMatch[0];
@@ -24,27 +19,26 @@ export const searchTelegramGroups = async (params: SearchParams): Promise<Search
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   const isUserSearch = params.searchType === 'user';
 
-  // دمج سياق العميل في التعليمات البرمجية
   const agentSignature = params.agentContext?.isRegistered 
     ? `توقيع العميل: ${params.agentContext.agentName} | الرقم العملياتي: ${params.agentContext.operationalId}`
-    : "طلب من عميل غير معروف (GUEST).";
+    : "طلب من عميل مجهول.";
 
-  const systemInstruction = `أنت وحدة الذكاء الاستخباراتي "SCOUT OPS v4.0". مهمتك استخراج روابط التواصل (تليجرام، واتساب) المنشورة في الفضاء الرقمي.
-  
-  بروتوكول الفحص الحالي:
-  - العميل النشط: ${agentSignature}
-  - الدولة: ${params.country} | الفئة: ${params.category} | اللغة: ${params.language}
-  
-  قواعد الاشتباك الرقمي:
-  1. روابط تليجرام: استخراج t.me/+ أو t.me/joinchat أو t.me/[name].
-  2. روابط واتساب: استخراج chat.whatsapp.com/[id].
-  3. تتبع المعرفات (Entity Tracking): إذا كان نوع البحث "user"، قم بمسح المنصات (X, LinkedIn, GitHub) لإيجاد روابط مجموعات مرتبطة بالمعرف "${params.query}".
-  
-  المخرجات: يجب أن تكون حصراً بتنسيق JSON وبناءً على المخطط المحدد.`;
+  const systemInstruction = `أنت وحدة الاستخبارات الرقمية "SCOUT OPS v4.5". مهمتك هي إجراء مسح شامل "Comprehensive Scan" لجميع الروابط النشطة والمنشورات المرتبطة بها.
+
+الهدف الأساسي:
+1. العثور على روابط (Telegram/WhatsApp) المخفية والعلنية.
+2. تتبع "الاتجاهات" (Directions): يجب توفير رابط المنشور الأصلي (Source Post URL) الذي يحتوي على الرابط المكتشف (مثلاً رابط تغريدة على X أو منشور LinkedIn).
+3. تحديد هوية المنصة المصدر بدقة.
+
+بروتوكول البيانات:
+- المنطقة: ${params.country}
+- العميل: ${agentSignature}
+
+يجب أن تكون المخرجات بتنسيق JSON حصراً وتتضمن رابط المنشور المرجعي (sourcePostUrl) لكل نتيجة.`;
 
   const prompt = isUserSearch 
-    ? `أجرِ مسحاً استخباراتياً عميقاً للمعرف: "${params.query}". ابحث عن أي آثار رقمية أو مجموعات تواصل مرتبطة بهذا الكيان في منطقة ${params.country}.`
-    : `استخرج روابط نشطة لمجموعات تواصل تتعلق بـ "${params.query}" في تصنيف "${params.category}" داخل "${params.country}".`;
+    ? `قم بتتبع المعرف الرقمي "${params.query}" في جميع المنصات. استخرج روابط مجموعات تليجرام/واتساب المرتبطة به مع روابط المنشورات الأصلية (Source Posts) التي ذكر فيها هذا المعرف.`
+    : `استخرج جميع الروابط النشطة لمجموعات تواصل حول موضوع "${params.query}" في "${params.country}". تأكد من تضمين روابط المنشورات الأصلية التي تم العثور فيها على هذه الروابط لتتبع المصدر.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -57,7 +51,7 @@ export const searchTelegramGroups = async (params: SearchParams): Promise<Search
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            analysis: { type: Type.STRING, description: "تحليل موجز للنتائج." },
+            analysis: { type: Type.STRING },
             groups: {
               type: Type.ARRAY,
               items: {
@@ -65,13 +59,14 @@ export const searchTelegramGroups = async (params: SearchParams): Promise<Search
                 properties: {
                   title: { type: Type.STRING },
                   description: { type: Type.STRING },
-                  url: { type: Type.STRING },
+                  url: { type: Type.STRING, description: "رابط تليجرام أو واتساب." },
+                  sourcePostUrl: { type: Type.STRING, description: "رابط المنشور الأصلي في X أو LinkedIn أو غيرها." },
                   isPrivate: { type: Type.BOOLEAN },
                   linkType: { type: Type.STRING, enum: ["Telegram", "WhatsApp"] },
-                  platformSource: { type: Type.STRING },
+                  platformSource: { type: Type.STRING, description: "اسم المنصة (X, Facebook, etc)" },
                   confidenceScore: { type: Type.NUMBER }
                 },
-                required: ["title", "description", "url", "linkType", "confidenceScore", "platformSource"]
+                required: ["title", "description", "url", "linkType", "confidenceScore", "platformSource", "sourcePostUrl"]
               }
             },
             riskLevel: { type: Type.STRING, enum: ["Low", "Medium", "High"] }
@@ -95,13 +90,10 @@ export const searchTelegramGroups = async (params: SearchParams): Promise<Search
       id: `intel-${Math.random().toString(36).substring(2, 9)}`,
       timestamp: new Date().toLocaleTimeString('ar-EG'),
       isProfessional: g.confidenceScore > 80,
-      category: params.category,
-      country: params.country,
-      language: params.language
     }));
 
     return { 
-      text: resultData.analysis || "اكتمل تحليل الإشارات الرقمية بنجاح.",
+      text: resultData.analysis || "اكتمل المسح الشامل للمصادر والروابط.",
       sources, 
       parsedGroups,
       summary: {
@@ -111,7 +103,7 @@ export const searchTelegramGroups = async (params: SearchParams): Promise<Search
       }
     };
   } catch (error: any) {
-    console.error("Critical System Failure:", error);
+    console.error("Critical Failure:", error);
     throw error;
   }
 };

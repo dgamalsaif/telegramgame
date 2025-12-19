@@ -18,6 +18,7 @@ export interface TelegramGroup {
   title: string;
   description: string;
   url: string;
+  sourcePostUrl?: string; // رابط المنشور الأصلي الذي تم العثور فيه على الرابط
   category?: string;
   isPrivate: boolean;
   isProfessional?: boolean;
