@@ -7,12 +7,12 @@ import { IntelLink, SearchResult, PlatformType, SearchMode, SearchParams, Connec
 const ALL_PLATFORMS: { id: PlatformType; icon: string; color: string; hoverColor: string }[] = [
   { id: 'Telegram', icon: 'fa-brands fa-telegram', color: 'text-sky-400', hoverColor: 'hover:bg-sky-500' },
   { id: 'WhatsApp', icon: 'fa-brands fa-whatsapp', color: 'text-emerald-400', hoverColor: 'hover:bg-emerald-500' },
+  { id: 'Discord', icon: 'fa-brands fa-discord', color: 'text-indigo-400', hoverColor: 'hover:bg-indigo-500' },
   { id: 'X', icon: 'fa-brands fa-x-twitter', color: 'text-white', hoverColor: 'hover:bg-slate-700' },
   { id: 'Facebook', icon: 'fa-brands fa-facebook', color: 'text-blue-600', hoverColor: 'hover:bg-blue-600' },
   { id: 'LinkedIn', icon: 'fa-brands fa-linkedin', color: 'text-blue-500', hoverColor: 'hover:bg-blue-500' },
-  { id: 'Discord', icon: 'fa-brands fa-discord', color: 'text-indigo-400', hoverColor: 'hover:bg-indigo-500' },
-  { id: 'Instagram', icon: 'fa-brands fa-instagram', color: 'text-pink-500', hoverColor: 'hover:bg-pink-600' },
   { id: 'Reddit', icon: 'fa-brands fa-reddit', color: 'text-orange-500', hoverColor: 'hover:bg-orange-600' },
+  { id: 'Instagram', icon: 'fa-brands fa-instagram', color: 'text-pink-500', hoverColor: 'hover:bg-pink-600' },
   { id: 'TikTok', icon: 'fa-brands fa-tiktok', color: 'text-pink-400', hoverColor: 'hover:bg-pink-500' },
   { id: 'Signal', icon: 'fa-solid fa-comment-dots', color: 'text-blue-300', hoverColor: 'hover:bg-blue-400' },
 ];
@@ -636,7 +636,8 @@ const App: React.FC = () => {
   const [mode, setMode] = useState<SearchMode>('discovery');
   const [scope, setScope] = useState<SearchScope>('communities');
   const [query, setQuery] = useState('');
-  const [platforms, setPlatforms] = useState<PlatformType[]>(['Telegram', 'WhatsApp', 'LinkedIn', 'Facebook']);
+  // UPDATED: Added Discord to default active platforms as requested
+  const [platforms, setPlatforms] = useState<PlatformType[]>(['Telegram', 'WhatsApp', 'Discord', 'LinkedIn', 'Facebook']);
   const [identities, setIdentities] = useState<ConnectedIdentity[]>([]);
   const [geo, setGeo] = useState<SearchParams['location']>({});
   const [medical, setMedical] = useState<SearchParams['medicalContext']>({});

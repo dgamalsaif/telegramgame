@@ -18,144 +18,104 @@ const parseSafeJSON = (text: string): any => {
   }
 };
 
-// --- ALGORITHM V2: DEEP CONVERSATIONAL VECTOR ---
+// --- ALGORITHM V4: HYPER-SPEED VECTOR ---
 const buildSearchVector = (params: SearchParams): string => {
-  const { query, mode, platforms, location, medicalContext, identities } = params;
+  const { query, mode, scope, platforms, location, medicalContext } = params;
   
-  // 1. PLATFORM DEFINITIONS & CONVERSATIONAL TARGETS
-  const platformSignatures: Record<string, string> = {
-    'Telegram': '("t.me/+" OR "t.me/joinchat" OR "telegram.me" OR "telegram group")',
-    'WhatsApp': '("chat.whatsapp.com" OR "whatsapp group")',
-    'Discord': '("discord.gg" OR "discord.com/invite")',
-    'Facebook': '(site:facebook.com/groups OR "facebook group")',
-    'LinkedIn': '(site:linkedin.com/groups OR "linkedin group")',
-    'X': '(site:x.com OR site:twitter.com)', 
-    'Signal': '("signal.group")',
+  // 1. AGGRESSIVE PLATFORM SIGNATURES
+  // We use specific operators to target invite URLs directly
+  const directLinkPatterns: Record<string, string> = {
+    'Telegram': '(site:t.me OR site:telegram.me OR "t.me/+" OR "t.me/joinchat")',
+    'WhatsApp': '(site:chat.whatsapp.com OR "chat.whatsapp.com")',
+    'Discord': '(site:discord.com/invite OR site:discord.gg OR "discord.gg")',
+    'Facebook': '(site:facebook.com/groups)',
+    'LinkedIn': '(site:linkedin.com/groups)',
+    'Signal': '(site:signal.group)',
+    'Reddit': '(site:reddit.com)',
+    'X': '(site:x.com OR site:twitter.com)',
   };
 
-  // 2. CONVERSATIONAL KEYWORDS
-  const conversationalEnglish = '("anyone has link" OR "dm me link" OR "link in comments" OR "group link" OR "invite link" OR "joined" OR "discussion thread")';
-  const conversationalArabic = '("رابط القروب" OR "تجمع" OR "مين عنده الرابط" OR "الرابط بالخاص" OR "قروب واتس" OR "قناة تليجرام" OR "رابط الدعوة")';
-  const conversationLayer = `(${conversationalEnglish} OR ${conversationalArabic})`;
+  // 2. SCOPE TARGETING (Optimized for Communities/Channels)
+  let scopeKeywords = '';
+  if (scope === 'channels') {
+     scopeKeywords = '("channel" OR "broadcast" OR "feed")';
+     if (platforms.includes('Telegram')) directLinkPatterns['Telegram'] = '(site:t.me/s/ OR "t.me") -joinchat';
+  } else if (scope === 'communities' || scope === 'events') {
+     scopeKeywords = '("group" OR "chat" OR "community" OR "discussion" OR "thread")';
+     // Force join links for communities
+     if (platforms.includes('Telegram')) directLinkPatterns['Telegram'] = '(site:t.me/joinchat OR site:t.me/+)';
+  } else {
+     scopeKeywords = '("profile" OR "bio" OR "contact")';
+  }
 
-  // 3. TARGETED FOOTPRINTS
-  const activeSignatures = platforms.map(p => platformSignatures[p]).filter(Boolean).join(' OR ');
-  const targetSites = platforms.map(p => {
-      if(p === 'Telegram') return 'site:t.me';
-      if(p === 'WhatsApp') return 'site:whatsapp.com';
-      if(p === 'Facebook') return 'site:facebook.com';
-      if(p === 'LinkedIn') return 'site:linkedin.com';
-      if(p === 'X') return '(site:twitter.com OR site:x.com)';
-      if(p === 'Reddit') return 'site:reddit.com';
-      if(p === 'Discord') return 'site:discord.com';
-      return '';
-  }).filter(Boolean).join(' OR ');
+  // 3. PLATFORM SELECTION
+  const activePlatforms = platforms.length > 0 ? platforms : ['Telegram', 'WhatsApp', 'Discord'];
+  const targetSites = activePlatforms
+    .map(p => directLinkPatterns[p] || `"${p}"`) 
+    .join(' OR ');
 
-  // 4. SMART QUERY EXPANSION
+  // 4. DISCOVERY LAYER (Finding links on 3rd party sites)
+  const discoveryKeywords = `("invite link" OR "join group" OR "group link" OR "discord invite" OR "whatsapp link")`;
+
+  // 5. SMART MEDICAL CONTEXT (Auto-Inject)
   let coreQuery = `"${query}"`;
   
-  // Detect medical context automatically to support "any word"
   const isMedicalContext = mode === 'medical-residency' || 
-                           query.toLowerCase().includes('residency') || 
-                           query.toLowerCase().includes('board') ||
-                           query.toLowerCase().includes('medical') ||
-                           query.toLowerCase().includes('medicine') ||
-                           query.toLowerCase().includes('doctor') ||
-                           query.toLowerCase().includes('specialty');
+                           /medical|medicine|doctor|board|residency|specialty|health|clinic|hospital|pharmacy|dentist/i.test(query);
 
   if (isMedicalContext) {
       const specialty = medicalContext?.specialty || query;
-      const level = medicalContext?.level || '';
-      
-      // Dynamic Alias Generation (Generic & Specific)
-      let enhancedSpecialty = `"${specialty}"`;
       const sLower = specialty.toLowerCase();
+      let enhancedSpecialty = `"${specialty}"`;
 
-      // We keep optimized mappings for common requests, but fallback gracefully for ANY word
-      if(sLower.includes('family') || sLower.includes('fam')) {
-          enhancedSpecialty = '("Family Medicine" OR "FM" OR "Fam Med" OR "طب الأسرة" OR "طب أسرة")';
-      } else if (sLower.includes('pedia')) {
-          enhancedSpecialty = '("Pediatrics" OR "Pedia" OR "طب أطفال" OR "طب الأطفال")';
-      } else if (sLower.includes('internal') || sLower === 'im') {
-           enhancedSpecialty = '("Internal Medicine" OR "IM" OR "الباطنة")';
-      } else if (sLower.includes('surgery') || sLower === 'gs') {
-           enhancedSpecialty = '("General Surgery" OR "GS" OR "جراحة عامة")';
-      } else if (sLower.includes('dent') || sLower.includes('asnan')) {
-           enhancedSpecialty = '("Dentistry" OR "Dental" OR "طب الأسنان")';
-      }
+      // Fast Alias Mapping
+      if(sLower.includes('family') || sLower.includes('fam')) enhancedSpecialty = '("Family Medicine" OR "FM" OR "طب الأسرة")';
+      else if (sLower.includes('pedia')) enhancedSpecialty = '("Pediatrics" OR "Pedia" OR "طب أطفال")';
+      else if (sLower.includes('internal') || sLower === 'im') enhancedSpecialty = '("Internal Medicine" OR "IM" OR "الباطنة")';
+      else if (sLower.includes('surgery') || sLower === 'gs') enhancedSpecialty = '("General Surgery" OR "GS" OR "جراحة")';
 
-      // Generic context layer that works for ANY specialty word typed
-      const enContext = `("Board" OR "Residency" OR "Fellowship" OR "Community" OR "Study Group" OR "Residents" OR "Exam Prep")`;
-      const arContext = `("بورد" OR "زمالة" OR "تجمع" OR "أطباء" OR "قروب" OR "دراسة" OR "الهيئة السعودية")`;
+      const contextKeywords = `("Board" OR "Residency" OR "Fellowship" OR "Group" OR "بورد" OR "تجمع" OR "قروب")`;
       
-      const medicalLogic = `(${enhancedSpecialty} ${level}) (${enContext} OR ${arContext})`;
-
-      // CRITICAL FIX: Ensure the original query (which may contain location like "Saudi Arabia") 
-      // is NOT lost during the vector construction.
-      if (!medicalContext?.specialty && query) {
-         // User typed freeform (e.g. "Pediatric Board in Saudi Arabia"). 
-         // We add the original query to the vector to capture the location intent.
-         coreQuery = `(${query}) AND ${medicalLogic}`;
-      } else {
-         // User used fields, or we want to prioritize the constructed logic
-         coreQuery = query ? `"${query}" AND ${medicalLogic}` : medicalLogic;
-      }
+      // If query is generic, we replace it. If specific, we append context.
+      coreQuery = query.length < 3 ? `(${enhancedSpecialty} ${contextKeywords})` : `("${query}" AND ${contextKeywords})`;
   }
 
-  // 5. LOCATION LOCK
+  // 6. LOCATION LOCK
   const locStr = [location?.country, location?.city].filter(Boolean).map(s => `"${s}"`).join(' AND ');
 
-  // 6. FINAL VECTOR
-  const combinedVector = `
+  // 7. FINAL VECTOR
+  // Priority: Query AND (Direct Sites OR Discovery)
+  return `
     ${coreQuery} 
     ${locStr} 
-    (${targetSites} OR (${activeSignatures} ${conversationLayer}))
+    ${scopeKeywords}
+    (${targetSites} OR ${discoveryKeywords})
   `.replace(/\s+/g, ' ').trim();
-
-  return combinedVector;
 };
 
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const searchVector = buildSearchVector(params);
   
-  const authContext = params.identities.length > 0 
-    ? `PRIVILEGED ACCESS ENABLED: ${params.identities.map(i => {
-        const type = i.connectionMethod === 'api_key' ? '[API KEY VERIFIED]' : i.connectionMethod === 'oauth_handshake' ? '[LIVE SESSION]' : '[SIMULATED]';
-        return `${i.platform} (${type} User: ${i.value})`;
-    }).join(', ')}. Treat these platforms as FULLY AUTHENTICATED.`
-    : "ACCESS MODE: PUBLIC WEB INDEX ONLY";
-
+  // MINIMALIST INSTRUCTION FOR MAXIMUM SPEED
   const systemInstruction = `
-    You are SCOUT OPS v7.5, an Elite Open Source Intelligence (OSINT) Engine.
-    ${authContext}
+    ROLE: OSINT LINK EXTRACTOR.
+    TARGET: Find DIRECT INVITE LINKS (Telegram, WhatsApp, Discord) for: "${params.query}".
     
-    === OPERATIONAL GOAL ===
-    Perform a SIMULTANEOUS MULTI-PLATFORM SCAN to find "Group Invite Links" and "Community Discussions".
-    
-    === OUTPUT FORMAT ===
-    Return a raw JSON object. 
-    The 'analysis' field must be a structured TEXT REPORT (use \\n for new lines) with the following headers:
-    [EXECUTIVE SUMMARY], [KEY INTEL], [STRATEGIC ASSESSMENT].
-    
-    CRITICAL: The report MUST focus on the specific query "${params.query}".
-    If searching for Medical/Board groups (e.g., Pediatrics in Saudi Arabia), analyze the relevance of found communities to the residency/board exams.
-    
-    JSON Structure:
+    OUTPUT: STRICT JSON ONLY. NO MARKDOWN.
+    Format:
     {
-      "analysis": "[EXECUTIVE SUMMARY]\\nBrief overview of findings.\\n\\n[KEY INTEL]\\nSpecific high-value targets found.\\n\\n[STRATEGIC ASSESSMENT]\\nAnalysis of the activity level and authenticity.",
+      "analysis": "Generate a 'MISSION REPORT' with headers: [EXECUTIVE SUMMARY], [KEY INTEL], [STRATEGIC ASSESSMENT]. Be concise.",
       "links": [
         {
-          "title": "Page Title",
-          "url": "URL",
-          "platform": "Platform",
-          "type": "Group | Channel | Profile",
-          "sharedBy": "Sender Handle",
-          "description": "Short summary",
-          "context": "Message context",
-          "confidence": 85,
+          "title": "Title of Group/Channel",
+          "url": "Direct URL",
+          "platform": "Telegram|WhatsApp|Discord|etc",
+          "type": "Group|Channel|Community",
+          "description": "Brief context",
+          "confidence": 95,
           "status": "Active",
-          "tags": ["Verified", "Private"] 
+          "tags": ["Direct Link", "Verified"]
         }
       ]
     }
@@ -163,122 +123,100 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `[EXECUTE SIMULTANEOUS SCAN] Query: ${searchVector}`,
+      model: "gemini-3-flash-preview", // Flash model is fastest
+      contents: `SCAN QUERY: ${searchVector}`,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }], 
+        temperature: 0.3, // Lower temperature for more deterministic/faster results
       },
     });
 
     const rawData = parseSafeJSON(response.text);
     const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    // 1. Process Grounding Results
+    // 1. Process Web Results (Fastest Path)
     const verifiedLinks: IntelLink[] = grounding
       .filter((c: any) => c.web && c.web.uri)
       .map((c: any, i: number) => {
         const uri = c.web.uri;
         let platform: PlatformType = 'Telegram'; 
-        let discoverySource = 'Web Index';
+        let isDirect = false;
 
-        if (uri.includes('t.me') || uri.includes('telegram')) platform = 'Telegram';
-        else if (uri.includes('whatsapp')) platform = 'WhatsApp';
-        else if (uri.includes('discord')) platform = 'Discord';
+        if (uri.includes('t.me') || uri.includes('telegram')) { platform = 'Telegram'; isDirect = true; }
+        else if (uri.includes('whatsapp') || uri.includes('chat.whatsapp')) { platform = 'WhatsApp'; isDirect = true; }
+        else if (uri.includes('discord')) { platform = 'Discord'; isDirect = true; }
         else if (uri.includes('linkedin')) platform = 'LinkedIn';
         else if (uri.includes('facebook')) platform = 'Facebook';
-        else if (uri.includes('twitter') || uri.includes('x.com')) { platform = 'X'; discoverySource = 'Twitter Thread'; }
+        else if (uri.includes('x.com') || uri.includes('twitter')) platform = 'X';
         else if (uri.includes('instagram')) platform = 'Instagram';
-        else if (uri.includes('reddit')) { platform = 'Reddit'; discoverySource = 'Reddit Discussion'; }
-
-        let type: IntelLink['type'] = 'Group';
-        if (platform === 'X' || platform === 'Reddit') type = 'Community'; 
-        if (uri.includes('joinchat') || uri.includes('/+')) type = 'Group';
-
-        const tags = ['Verified'];
-        if (uri.includes('/+') || uri.includes('joinchat')) tags.push('Private');
-        if (uri.includes('status') && platform === 'X') tags.push('Thread');
+        else if (uri.includes('reddit')) platform = 'Reddit';
+        else if (uri.includes('signal')) platform = 'Signal';
 
         return {
           id: `g-${i}`,
-          title: c.web.title || "Detected Signal",
+          title: c.web.title || `${platform} Signal`,
           url: uri,
-          description: "Signal detected via multi-platform scan.",
-          context: "Direct web result",
+          description: isDirect ? "Direct Invite Link Identified" : "Source Page containing relevant intel",
+          context: "Web Scan",
           platform,
-          type,
+          type: params.scope === 'channels' ? 'Channel' : 'Group',
           status: 'Active',
-          confidence: 90,
-          source: discoverySource,
-          sharedBy: "Public Index",
-          tags: tags,
+          confidence: isDirect ? 98 : 80,
+          source: "Live Index",
+          sharedBy: "Web",
+          tags: isDirect ? ['Direct Link'] : ['Source'],
           location: params.location?.country || 'Global'
         };
       });
 
-    // 2. Process AI Analysis
-    const finalLinks: IntelLink[] = [...verifiedLinks];
+    // 2. Merge AI Insights
+    let finalLinks = [...verifiedLinks];
     const seenUrls = new Set(verifiedLinks.map(l => l.url.toLowerCase()));
 
     if (rawData && rawData.links) {
       rawData.links.forEach((aiLink: any) => {
-        const existingLink = finalLinks.find(l => l.url.toLowerCase() === aiLink.url?.toLowerCase());
-        
-        if (existingLink) {
-          existingLink.sharedBy = aiLink.sharedBy;
-          existingLink.description = aiLink.description;
-          existingLink.context = aiLink.context;
-          existingLink.type = aiLink.type; 
-          if (aiLink.tags) existingLink.tags = [...new Set([...existingLink.tags, ...aiLink.tags])];
-        } else if (aiLink.url && !seenUrls.has(aiLink.url.toLowerCase())) {
-          finalLinks.push({
-            id: `ai-${Math.random()}`,
-            title: aiLink.title || "Hidden Connection",
-            description: aiLink.description,
-            context: aiLink.context,
-            url: aiLink.url,
-            platform: aiLink.platform as PlatformType,
-            type: aiLink.type || 'Group',
-            status: 'Active',
-            confidence: aiLink.confidence || 85, 
-            source: 'Deep Context Analysis',
-            sharedBy: aiLink.sharedBy || "Anonymous User",
-            tags: aiLink.tags || [],
-            location: aiLink.location || params.location?.country || 'Global'
-          });
+        if (!aiLink.url) return;
+        if (!seenUrls.has(aiLink.url.toLowerCase())) {
+           finalLinks.push({
+             ...aiLink,
+             id: `ai-${Math.random()}`,
+             confidence: aiLink.confidence || 85,
+             tags: aiLink.tags || ['Analyst Inferred']
+           });
         }
       });
     }
 
-    // 3. Post-Processing & Filtering
+    // 3. Fast Filter
     const userMinConf = params.filters?.minConfidence || 0;
-    const allowedPlatforms = new Set(params.platforms);
-    let filteredLinks = finalLinks.filter(l => {
+    const allowed = new Set(params.platforms.length > 0 ? params.platforms : ['Telegram', 'WhatsApp', 'Discord']);
+    
+    finalLinks = finalLinks.filter(l => {
         if (l.confidence < userMinConf) return false;
-        if (allowedPlatforms.has(l.platform)) return true;
-        if (l.platform === 'X' || l.platform === 'Reddit' || l.platform === 'Facebook') return true;
-        return false;
+        // Always include target platforms + major aggregators
+        return allowed.has(l.platform) || ['Reddit', 'X', 'Facebook'].includes(l.platform);
     });
 
-    filteredLinks.sort((a, b) => b.confidence - a.confidence);
-
-    const platformDist: Record<string, number> = {};
-    filteredLinks.forEach(l => {
-      platformDist[l.platform] = (platformDist[l.platform] || 0) + 1;
+    // Sort: Direct Links first
+    finalLinks.sort((a, b) => {
+       const aScore = (a.tags.includes('Direct Link') ? 100 : 0) + a.confidence;
+       const bScore = (b.tags.includes('Direct Link') ? 100 : 0) + b.confidence;
+       return bScore - aScore;
     });
 
     return {
-      analysis: rawData?.analysis || "Scanning complete. Analysis data pending.",
-      links: filteredLinks,
+      analysis: rawData?.analysis || "Scan complete. Intel compiled.",
+      links: finalLinks,
       stats: {
-        total: filteredLinks.length,
-        platformDistribution: platformDist,
-        topLocations: [params.location?.country || 'Global']
+        total: finalLinks.length,
+        platformDistribution: {}, 
+        topLocations: []
       }
     };
 
   } catch (error) {
-    console.error("OSINT ENGINE FAILURE:", error);
+    console.error("ENGINE ERROR:", error);
     throw error;
   }
 };
