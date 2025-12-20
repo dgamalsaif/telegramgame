@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { searchGlobalIntel, testConnection } from './services/geminiService';
 import { IntelLink, SearchResult, SearchType, Platform, PlatformType } from './types';
 
-// Define the missing availablePlatforms constant used in the UI
 const availablePlatforms: { name: PlatformType; icon: string }[] = [
   { name: 'Telegram', icon: 'fa-brands fa-telegram' },
   { name: 'WhatsApp', icon: 'fa-brands fa-whatsapp' },
@@ -38,20 +37,22 @@ const App: React.FC = () => {
     setLogs(prev => [...prev.slice(-50), `[${timestamp}] ${msg}`]);
   };
 
+  const checkApi = async () => {
+    setApiStatus('testing');
+    addLog("SYSTEM: INITIALIZING KERNEL v7.5...");
+    addLog("API: TESTING CONNECTION TO GOOGLE CLOUD...");
+    
+    const isOk = await testConnection();
+    if (isOk) {
+      setApiStatus('online');
+      addLog("SUCCESS: API HANDSHAKE VERIFIED. ENGINE IS ONLINE.");
+    } else {
+      setApiStatus('offline');
+      addLog("CRITICAL: API HANDSHAKE FAILED. CHECK YOUR API_KEY.");
+    }
+  };
+
   useEffect(() => {
-    const checkApi = async () => {
-      addLog("SYSTEM: INITIALIZING KERNEL v7.5...");
-      addLog("API: TESTING CONNECTION TO GOOGLE CLOUD...");
-      
-      const isOk = await testConnection();
-      if (isOk) {
-        setApiStatus('online');
-        addLog("SUCCESS: API HANDSHAKE VERIFIED. ENGINE IS ONLINE.");
-      } else {
-        setApiStatus('offline');
-        addLog("CRITICAL: API HANDSHAKE FAILED. CHECK YOUR API_KEY.");
-      }
-    };
     checkApi();
   }, []);
 
@@ -61,6 +62,17 @@ const App: React.FC = () => {
     }
   }, [logs]);
 
+  const handleOpenKeyDialog = async () => {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      addLog("USER: OPENING API KEY SELECTION DIALOG...");
+      await window.aistudio.openSelectKey();
+      // Proceed immediately as per instructions
+      checkApi();
+    } else {
+      setError("وظيفة اختيار المفتاح غير متوفرة في هذه البيئة. يرجى التأكد من تعريف API_KEY في المتغيرات.");
+    }
+  };
+
   const togglePlatform = (p: PlatformType) => {
     setSelectedPlatforms(prev => 
       prev.includes(p) ? prev.filter(item => item !== p) : [...prev, p]
@@ -69,7 +81,7 @@ const App: React.FC = () => {
 
   const handleSearch = async () => {
     if (apiStatus !== 'online') {
-      setError("لا يمكن بدء البحث لأن محرك API غير متصل. يرجى التحقق من المفتاح.");
+      setError("المحرك غير متصل. يرجى الضغط على زر 'ربط المحرك' في الأسفل.");
       return;
     }
     if (!query.trim() && !specialty.trim()) {
@@ -84,7 +96,7 @@ const App: React.FC = () => {
     setLoadingStep('جاري تنفيذ بروتوكول الاستكشاف...');
 
     try {
-      addLog(`RECON: البحث عن "${query || specialty}" في [${location || 'العالم'}]`);
+      addLog(`RECON: البحث عن "${query || specialty}" باستخدام Flash Engine...`);
       const data = await searchGlobalIntel({
         query,
         location: location || 'Global',
@@ -97,7 +109,7 @@ const App: React.FC = () => {
       setResult(data);
       addLog(`SUCCESS: تم التقاط ${data.links.length} إشارة نشطة.`);
     } catch (err: any) {
-      setError("حدث خطأ أثناء الاتصال بالمحرك. تأكد من أن مفتاحك يدعم Gemini 3 Pro.");
+      setError("فشل الاتصال. قد يكون مفتاح الـ API غير صالح أو المشروع يتطلب تفعيل الدفع.");
       addLog(`FATAL: ${err.message}`);
     } finally {
       setLoading(false);
@@ -155,15 +167,23 @@ const App: React.FC = () => {
           <div className="inline-flex items-center gap-4 px-6 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
             <span className={`w-2 h-2 rounded-full ${apiStatus === 'online' ? 'bg-emerald-500 animate-ping' : apiStatus === 'offline' ? 'bg-rose-500' : 'bg-amber-500 animate-pulse'}`}></span>
             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.4em]">
-              {apiStatus === 'online' ? 'Engine Online' : apiStatus === 'offline' ? 'Engine Offline' : 'Verifying Engine...'}
+              {apiStatus === 'online' ? 'Flash Engine Online' : apiStatus === 'offline' ? 'Engine Connection Required' : 'Verifying Connectivity...'}
             </span>
           </div>
           <h1 className="text-7xl lg:text-9xl font-black tracking-tighter text-white uppercase leading-none">
             SCOUT<span className="text-indigo-600">OPS</span><span className="text-indigo-500 text-3xl font-black align-top mr-4">7.5</span>
           </h1>
           <p className="text-slate-500 max-w-3xl font-medium text-lg lg:text-2xl leading-relaxed">
-            استكشاف ذكي للبيانات والروابط عبر الويب المفتوح.
+            استكشاف ذكي للبيانات والروابط عبر الويب المفتوح باستخدام تقنية Flash لتجاوز قيود الدفع.
           </p>
+          {apiStatus === 'offline' && (
+            <button 
+              onClick={handleOpenKeyDialog}
+              className="px-8 py-4 bg-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest text-white animate-bounce shadow-xl shadow-indigo-600/20"
+            >
+              اضغط هنا لربط المحرك (API Key)
+            </button>
+          )}
         </header>
 
         <section className="bg-white/[0.02] border border-white/5 rounded-[4rem] p-8 lg:p-14 backdrop-blur-3xl shadow-2xl space-y-14">
@@ -195,8 +215,8 @@ const App: React.FC = () => {
                   placeholder="أدخل كلمة البحث (مثلاً: أطباء امتياز، هندسة)..."
                   className="flex-1 bg-transparent py-8 px-10 text-2xl font-bold text-white focus:outline-none placeholder:text-slate-800"
                 />
-                <button onClick={() => handleSearch()} disabled={loading || apiStatus !== 'online'} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white rounded-[3.5rem] px-14 py-8 font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 shadow-2xl flex items-center gap-4">
-                  {loading ? 'Recon...' : apiStatus === 'online' ? 'تنفيذ المسح' : 'API Offline'}
+                <button onClick={() => handleSearch()} disabled={loading} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white rounded-[3.5rem] px-14 py-8 font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 shadow-2xl flex items-center gap-4">
+                  {loading ? 'Recon...' : 'تنفيذ المسح'}
                   <i className="fa-solid fa-bolt-lightning"></i>
                 </button>
               </div>
@@ -247,7 +267,10 @@ const App: React.FC = () => {
             <i className="fa-solid fa-triangle-exclamation text-7xl text-rose-500"></i>
             <h3 className="text-3xl font-black text-white uppercase">فشل المحرك</h3>
             <p className="text-rose-400/80 text-md font-bold leading-relaxed">{error}</p>
-            <button onClick={() => setError(null)} className="px-14 py-5 bg-white/5 hover:bg-white/10 text-white rounded-full font-black text-[11px] uppercase transition-all">إعادة المحاولة</button>
+            <div className="flex gap-4 justify-center">
+              <button onClick={() => setError(null)} className="px-14 py-5 bg-white/5 hover:bg-white/10 text-white rounded-full font-black text-[11px] uppercase transition-all">إعادة المحاولة</button>
+              <button onClick={handleOpenKeyDialog} className="px-14 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-black text-[11px] uppercase transition-all shadow-xl">ربط المحرك</button>
+            </div>
           </div>
         )}
 
@@ -257,10 +280,12 @@ const App: React.FC = () => {
         <div className="bg-black/90 backdrop-blur-3xl border border-white/10 px-12 py-5 rounded-full flex items-center gap-12 shadow-3xl pointer-events-auto">
           <div className="flex items-center gap-4">
             <div className={`w-3 h-3 rounded-full shadow-lg ${apiStatus === 'online' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-            <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">Engine Status: <span className={apiStatus === 'online' ? 'text-white' : 'text-rose-500'}>{apiStatus.toUpperCase()}</span></span>
+            <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">Status: <span className={apiStatus === 'online' ? 'text-white' : 'text-rose-500'}>{apiStatus.toUpperCase()}</span></span>
           </div>
           <div className="h-6 w-px bg-white/10"></div>
-          <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">Model: <span className="text-sky-400">G-3 PRO</span></span>
+          <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">Engine: <span className="text-sky-400">G-3 FLASH</span></span>
+          <div className="h-6 w-px bg-white/10"></div>
+          <button onClick={handleOpenKeyDialog} className="text-[11px] font-black text-indigo-400 hover:text-white uppercase tracking-[0.4em] transition-colors">Setup API Key</button>
         </div>
       </footer>
     </div>
