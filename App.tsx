@@ -756,31 +756,28 @@ const App: React.FC = () => {
     log("DATA EXPORTED TO CSV/EXCEL FORMAT.");
   };
 
-  const handleSearch = async () => {
-    if (!query.trim() && mode !== 'medical-residency') return;
-    if (mode === 'medical-residency' && !medical?.specialty) {
-      // Allow searching with query in main box even in medical mode
-      if (!query.trim()) {
-         log("ERR: MISSING MEDICAL PARAMETERS");
-         return;
-      }
-    }
+  const handleSearch = async (overrideParams: Partial<SearchParams> = {}) => {
+    // Calculate final effective parameters (Override > State)
+    const finalQuery = overrideParams.query ?? query;
+    const finalMode = overrideParams.mode ?? mode;
+    
+    if (!finalQuery.trim() && finalMode !== 'medical-residency') return;
 
     setLoading(true);
     setResult(null);
-    log(`INITIALIZING SCAN: ${mode.toUpperCase()} // SCOPE: ${scope.toUpperCase()}`);
+    log(`INITIALIZING SCAN: ${finalMode.toUpperCase()} // SCOPE: ${(overrideParams.scope ?? scope).toUpperCase()}`);
 
     try {
       const data = await searchGlobalIntel({
-        query,
-        mode,
-        scope,
-        platforms,
-        identities,
-        location: geo,
-        medicalContext: {
+        query: finalQuery,
+        mode: finalMode,
+        scope: overrideParams.scope ?? scope,
+        platforms: platforms, 
+        identities: identities,
+        location: overrideParams.location ?? geo,
+        medicalContext: overrideParams.medicalContext ?? {
             ...medical,
-            specialty: medical.specialty || query // Fallback to query if specialty input is empty
+            specialty: medical.specialty || finalQuery 
         },
         filters
       });
@@ -909,7 +906,7 @@ const App: React.FC = () => {
                   className="flex-1 bg-transparent py-4 text-base font-bold text-white placeholder:text-slate-700 focus:outline-none font-mono tracking-wide min-w-0"
                  />
                  <button 
-                  onClick={handleSearch}
+                  onClick={() => handleSearch()}
                   disabled={loading}
                   className="hidden sm:block bg-white text-black hover:bg-indigo-500 hover:text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:scale-105 active:scale-95"
                  >
@@ -918,13 +915,74 @@ const App: React.FC = () => {
                </div>
                {/* Mobile Execute Button */}
                <button 
-                  onClick={handleSearch}
+                  onClick={() => handleSearch()}
                   disabled={loading}
                   className="sm:hidden mt-3 w-full bg-indigo-600 text-white hover:bg-indigo-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)]"
                >
                   {loading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : 'EXECUTE SCAN'}
                </button>
             </div>
+            
+            {/* Tactical Scenarios Presets */}
+            <div className="flex gap-2 justify-center flex-wrap">
+                <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest py-1.5 px-2">Tactical Scenarios:</span>
+                
+                <button 
+                    onClick={() => {
+                        const params = {
+                            query: "Pediatric Board Saudi Arabia",
+                            mode: "medical-residency" as SearchMode,
+                            location: { country: "Saudi Arabia" },
+                            medicalContext: { specialty: "Pediatrics", level: "Board" }
+                        };
+                        setQuery(params.query);
+                        setMode(params.mode);
+                        setGeo(params.location);
+                        setMedical(params.medicalContext);
+                        handleSearch(params);
+                    }}
+                    className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full text-[9px] font-bold uppercase transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                >
+                    <i className="fa-solid fa-user-doctor"></i> 🇸🇦 KSA Pediatric Board
+                </button>
+
+                 <button 
+                    onClick={() => {
+                        const params = {
+                            query: "Riyadh Crypto Events",
+                            mode: "discovery" as SearchMode,
+                            scope: "events" as SearchScope,
+                            location: { country: "Saudi Arabia", city: "Riyadh" }
+                        };
+                        setQuery(params.query);
+                        setMode(params.mode);
+                        setScope(params.scope);
+                        setGeo(params.location);
+                        handleSearch(params);
+                    }}
+                    className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 px-3 py-1.5 rounded-full text-[9px] font-bold uppercase transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                >
+                    <i className="fa-brands fa-bitcoin"></i> Riyadh Tech/Crypto
+                </button>
+
+                <button 
+                    onClick={() => {
+                        const params = {
+                            query: "Cybersecurity Community",
+                            mode: "discovery" as SearchMode,
+                            scope: "communities" as SearchScope,
+                        };
+                        setQuery(params.query);
+                        setMode(params.mode);
+                        setScope(params.scope);
+                        handleSearch(params);
+                    }}
+                    className="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/20 px-3 py-1.5 rounded-full text-[9px] font-bold uppercase transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                >
+                    <i className="fa-solid fa-shield-halved"></i> CyberSec Groups
+                </button>
+            </div>
+
           </div>
         </div>
 
