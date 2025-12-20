@@ -23,8 +23,9 @@ const buildSearchVector = (params: SearchParams): string => {
   const { query, mode, scope, platforms, location, medicalContext, identities } = params;
   
   // 1. Define Platform Footprints (Prioritize Invite/Group URLs)
+  // UPDATED: Telegram footprint now explicitly targets private invite patterns (t.me/+)
   const footprints: Record<string, string> = {
-    'Telegram': '(site:t.me/joinchat OR site:t.me/+ OR site:telegram.me OR "t.me/")',
+    'Telegram': '(site:t.me/joinchat OR site:t.me/+ OR "t.me/+" OR "t.me/joinchat" OR site:telegram.me)',
     'WhatsApp': '(site:chat.whatsapp.com)',
     'Discord': '(site:discord.gg OR site:discord.com/invite)',
     'Facebook': '(site:facebook.com/groups)',
@@ -45,8 +46,11 @@ const buildSearchVector = (params: SearchParams): string => {
     .map(s => `"${s}"`)
     .join(' AND ');
 
-  // 3. Identity Augmentation
-  const authKeywords = identities.length > 0 ? "OR \"private group\" OR \"confidential\"" : "";
+  // 3. Identity Augmentation & Private Group Targeting
+  // If Telegram is selected, we specifically boost "private" keywords to find leaked invite links
+  const isTelegram = platforms.includes('Telegram');
+  const privateKeywords = isTelegram ? '("private group" OR "invite only" OR "join link" OR "t.me/+" OR "confidential")' : '';
+  const authKeywords = identities.length > 0 ? "OR \"confidential\"" : "";
 
   // 4. Scope Logic - STRICTLY GROUPS/CHANNELS
   let scopeKeywords = "";
@@ -77,11 +81,11 @@ const buildSearchVector = (params: SearchParams): string => {
     const specialty = medicalContext?.specialty || '';
     const level = medicalContext?.level || 'Residency';
     // Ensure we look for the specialty AND the group keywords
-    return `"${specialty}" "${level}" ${locStr} ${platformScope} (group OR community OR "fellowship chat" OR "residents group") ${scopeKeywords}`;
+    return `"${specialty}" "${level}" ${locStr} ${platformScope} (group OR community OR "fellowship chat" OR "residents group") ${scopeKeywords} ${privateKeywords}`;
   }
 
   // General Search
-  return `${queryStr} ${locStr} ${platformScope} ${scopeKeywords} ${authKeywords}`;
+  return `${queryStr} ${locStr} ${platformScope} ${scopeKeywords} ${authKeywords} ${privateKeywords}`;
 };
 
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
@@ -98,10 +102,11 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     
     === MISSION DIRECTIVES ===
     1. **TARGET**: Find ACTIVE Group Links (Telegram, WhatsApp, Discord, Facebook Groups) and Community Profiles.
-    2. **EXCLUSION**: Do NOT return generic documents (PDFs, DOCs) or articles unless they contain a DIRECT Invite Link.
-    3. **MEDICAL EXPANSION**: If the query is a medical specialty (e.g., 'pediatric'), YOU MUST AUTOMATICALLY SEARCH FOR ITS SUB-SPECIALTIES (e.g., 'neonatology', 'pediatric oncology', 'PICU', 'child health') within the target platforms.
-    4. **SOURCE IDENTIFICATION**: You MUST identify WHO shared the link. Was it an 'Official Account', a 'Community Admin', a 'University Page', or a 'User Message'?
-    5. **GEO-FENCING**: Strictly apply the location filters: ${params.location?.country || 'Global'} ${params.location?.city || ''}.
+    2. **PRIVATE INTEL**: Specifically hunt for TELEGRAM PRIVATE GROUPS using 't.me/+' or 'joinchat' patterns. These are high-value targets.
+    3. **EXCLUSION**: Do NOT return generic documents (PDFs, DOCs) or articles unless they contain a DIRECT Invite Link.
+    4. **MEDICAL EXPANSION**: If the query is a medical specialty (e.g., 'pediatric'), YOU MUST AUTOMATICALLY SEARCH FOR ITS SUB-SPECIALTIES (e.g., 'neonatology', 'pediatric oncology', 'PICU', 'child health') within the target platforms.
+    5. **SOURCE IDENTIFICATION**: You MUST identify WHO shared the link. Was it an 'Official Account', a 'Community Admin', a 'University Page', or a 'User Message'?
+    6. **GEO-FENCING**: Strictly apply the location filters: ${params.location?.country || 'Global'} ${params.location?.city || ''}.
 
     === INPUT PARAMETERS ===
     QUERY: "${params.query}"
@@ -110,7 +115,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
 
     === OUTPUT FORMAT (JSON) ===
     {
-      "analysis": "Briefing on the density of groups found, specific sub-specialties identified, and the primary source of these links.",
+      "analysis": "Briefing on the density of groups found, specific sub-specialties identified, presence of private/invite-only groups, and the primary source of these links.",
       "links": [
         {
           "title": "Group Name or Page Title",
@@ -121,7 +126,8 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
           "description": "Content summary.",
           "location": "Inferred Location",
           "confidence": 80-100,
-          "status": "Active"
+          "status": "Active",
+          "tags": ["Private", "Verified", "Medical"] // Add 'Private' if it is an invite link
         }
       ]
     }
@@ -159,13 +165,19 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
 
         let type: IntelLink['type'] = 'Group';
         // Infer type strictly for Groups/Communities
-        if (uri.includes('channel') || (platform === 'Telegram' && !uri.includes('joinchat'))) type = 'Channel';
+        if (uri.includes('channel') || (platform === 'Telegram' && !uri.includes('joinchat') && !uri.includes('+'))) type = 'Channel';
         else if (platform === 'LinkedIn' && uri.includes('/groups/')) type = 'Group';
         else if (platform === 'Facebook' && uri.includes('/groups/')) type = 'Group';
         else type = 'Group';
 
         if (params.scope === 'channels') type = 'Channel';
         if (params.scope === 'events') type = 'Event';
+
+        // Detect Private Links
+        const tags = ['Verified', 'Live'];
+        if (platform === 'Telegram' && (uri.includes('/+') || uri.includes('joinchat'))) {
+            tags.push('Private');
+        }
 
         return {
           id: `g-${i}`,
@@ -178,7 +190,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
           confidence: 100,
           source: 'Live Grounding',
           sharedBy: "Direct Search Result", // Grounding often lacks context of "who shared", AI analysis fills this better
-          tags: ['Verified', 'Live'],
+          tags: tags,
           location: params.location?.country || 'Global'
         };
       });
@@ -196,7 +208,14 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
         if (existingLink) {
           existingLink.sharedBy = aiLink.sharedBy || "Community Network";
           existingLink.description = aiLink.description;
+          if (aiLink.tags) existingLink.tags = [...new Set([...existingLink.tags, ...aiLink.tags])];
         } else if (aiLink.url && !seenUrls.has(aiLink.url.toLowerCase())) {
+          // Check for private tag in AI link URL as fallback
+          const aiTags = aiLink.tags || ['AI_Inferred'];
+          if (aiLink.platform === 'Telegram' && (aiLink.url.includes('/+') || aiLink.url.includes('joinchat'))) {
+              if (!aiTags.includes('Private')) aiTags.push('Private');
+          }
+
           finalLinks.push({
             id: `ai-${Math.random()}`,
             title: aiLink.title,
@@ -208,7 +227,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
             confidence: aiLink.confidence || 80, 
             source: 'Deep Analysis',
             sharedBy: aiLink.sharedBy || "Aggregated Source",
-            tags: ['AI_Inferred'],
+            tags: aiTags,
             location: aiLink.location || params.location?.country || 'Global'
           });
         }

@@ -468,8 +468,11 @@ const App: React.FC = () => {
   const handleSearch = async () => {
     if (!query.trim() && mode !== 'medical-residency') return;
     if (mode === 'medical-residency' && !medical?.specialty) {
-      log("ERR: MISSING MEDICAL PARAMETERS");
-      return;
+      // Allow searching with query in main box even in medical mode
+      if (!query.trim()) {
+         log("ERR: MISSING MEDICAL PARAMETERS");
+         return;
+      }
     }
 
     setLoading(true);
@@ -484,7 +487,10 @@ const App: React.FC = () => {
         platforms,
         identities,
         location: geo,
-        medicalContext: medical,
+        medicalContext: {
+            ...medical,
+            specialty: medical.specialty || query // Fallback to query if specialty input is empty
+        },
         filters
       });
 
@@ -606,7 +612,7 @@ const App: React.FC = () => {
                   placeholder={
                     mode === 'username' ? "Enter Target Identity / Handle..." :
                     mode === 'phone' ? "Enter Target Number (+1...)" :
-                    mode === 'medical-residency' ? "Specify Medical Context..." :
+                    mode === 'medical-residency' ? "Specify Medical Context or Type Query..." :
                     "Enter keywords to execute global scan..."
                   }
                   className="flex-1 bg-transparent py-4 text-base font-bold text-white placeholder:text-slate-700 focus:outline-none font-mono tracking-wide min-w-0"
@@ -675,13 +681,25 @@ const App: React.FC = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                  {result.links.map((link, idx) => {
                    const platformInfo = ALL_PLATFORMS.find(p => p.id === link.platform);
+                   const isPrivate = link.tags && link.tags.includes('Private');
                    
                    return (
                      <div key={link.id} className="bg-[#0b0d12] border border-white/5 hover:border-indigo-500/40 rounded-2xl p-6 transition-all duration-300 group relative hover:-translate-y-2 hover:shadow-[0_10px_40px_-10px_rgba(79,70,229,0.2)] flex flex-col">
+                       {isPrivate && (
+                         <div className="absolute -top-2 -right-2 bg-rose-600 text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded shadow-lg z-10 flex items-center gap-1 animate-pulse">
+                           <i className="fa-solid fa-lock"></i> Private
+                         </div>
+                       )}
+
                        <div className="flex justify-between items-start mb-4">
                          <div className="flex items-center gap-3">
-                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-black border border-white/10 text-lg shadow-inner ${platformInfo?.color || 'text-white'} group-hover:scale-110 transition-transform`}>
+                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-black border border-white/10 text-lg shadow-inner ${platformInfo?.color || 'text-white'} group-hover:scale-110 transition-transform relative`}>
                              <i className={platformInfo?.icon || 'fa-solid fa-globe'}></i>
+                             {isPrivate && (
+                               <div className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5">
+                                 <i className="fa-solid fa-lock text-[8px] text-rose-500"></i>
+                               </div>
+                             )}
                            </div>
                            <div>
                              <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">{link.type}</div>
@@ -690,8 +708,12 @@ const App: React.FC = () => {
                              </div>
                            </div>
                          </div>
-                         <div className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-wide border ${link.status === 'Active' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
-                           {link.status}
+                         <div className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-wide border ${
+                           isPrivate ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' :
+                           link.status === 'Active' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 
+                           'bg-slate-800 border-slate-700 text-slate-500'
+                         }`}>
+                           {isPrivate ? 'RESTRICTED' : link.status}
                          </div>
                        </div>
                        
@@ -726,9 +748,9 @@ const App: React.FC = () => {
                        <div className="flex gap-2 mt-auto">
                          <button 
                           onClick={() => window.open(link.url, '_blank')}
-                          className="flex-1 bg-white/5 hover:bg-indigo-600 text-slate-300 hover:text-white py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:shadow-lg active:scale-95"
+                          className={`flex-1 ${isPrivate ? 'bg-rose-900/30 hover:bg-rose-700 text-rose-200' : 'bg-white/5 hover:bg-indigo-600 text-slate-300 hover:text-white'} py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:shadow-lg active:scale-95`}
                          >
-                           Access Uplink <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                           {isPrivate ? 'Request Entry' : 'Access Uplink'} <i className={`fa-solid ${isPrivate ? 'fa-lock' : 'fa-arrow-up-right-from-square'}`}></i>
                          </button>
                          <button 
                           onClick={() => {
