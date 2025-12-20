@@ -7,7 +7,7 @@ export interface Platform {
   color: string;
 }
 
-export type PlatformType = 'Telegram' | 'WhatsApp' | 'Discord' | 'X' | 'Facebook' | 'Instagram' | 'LinkedIn' | 'TikTok';
+export type PlatformType = 'Telegram' | 'WhatsApp' | 'Discord' | 'X' | 'Facebook' | 'Instagram' | 'LinkedIn' | 'TikTok' | 'Reddit';
 
 export interface IntelLink {
   id: string;
@@ -22,11 +22,13 @@ export interface IntelLink {
     country: string;
     town?: string;
     hospital?: string;
+    specialty?: string;
   };
   source: {
     name: string;
     uri: string;
-    type: 'Search' | 'Leaked' | 'Directory' | 'Direct';
+    type: 'Search' | 'Mention' | 'Directory' | 'Direct';
+    context?: string; // Where exactly this link was mentioned
   };
   timestamp: string;
 }
@@ -48,18 +50,19 @@ export interface SearchResult {
     totalFound: number;
     privateCount: number;
     activeCount: number;
-    hospitalMatches: number;
+    medicalMatches: number;
   };
 }
 
-export type SearchType = 'topic' | 'user-id' | 'signal-phone' | 'medical-scan' | 'deep-scan';
+export type SearchType = 'topic' | 'user-id' | 'signal-phone' | 'medical-recon' | 'deep-scan' | 'mention-tracker';
 
 export interface SearchParams {
   query: string;
   location: string;
   town?: string;
   hospital?: string;
-  platforms: Platform[];
+  specialty?: string;
+  platforms: PlatformType[]; // Updated to strictly follow selected platforms
   searchType: SearchType;
   filters: {
     activeOnly: boolean;

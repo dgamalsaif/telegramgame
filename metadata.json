@@ -1,6 +1,6 @@
 {
-  "name": "SCOUT OPS v7.5 | Pure Recon",
-  "description": "نظام استكشاف المجتمع الرقمي v7.5 - الإصدار الأصلي المستقر للبحث عن مجموعات تليجرام ومنصات التواصل الاجتماعي.",
+  "name": "SCOUT OPS v7.5 Pro | Medical OSINT",
+  "description": "النظام الاستقصائي المتطور v7.5 - المتخصص في تتبع المجتمعات الطبية والأكاديمية والمهنية عبر كافة المنصات الرقمية.",
   "requestFramePermissions": [
     "geolocation"
   ]
