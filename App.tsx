@@ -16,11 +16,10 @@ const App: React.FC = () => {
   const [loadingStep, setLoadingStep] = useState('');
   const [result, setResult] = useState<SearchResult | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1400);
-  const [activeTab, setActiveTab] = useState<'links' | 'chats' | 'sources'>('links');
-  const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [confirmingLink, setConfirmingLink] = useState<IntelLink | null>(null);
-  
+  const [error, setError] = useState<string | null>(null);
+
   const terminalRef = useRef<HTMLDivElement>(null);
 
   const availablePlatforms: Platform[] = [
@@ -61,6 +60,11 @@ const App: React.FC = () => {
   const selectAllPlatforms = () => setSelectedPlatforms(availablePlatforms.map(p => p.name as PlatformType));
   const clearAllPlatforms = () => setSelectedPlatforms([]);
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    addLog(`CLIPBOARD: Copied ${text.substring(0, 20)}...`);
+  };
+
   const handleSearch = async (targetQuery?: string) => {
     const finalQuery = (targetQuery || query).trim();
     if (!finalQuery && !hospital.trim() && !specialty.trim()) {
@@ -80,8 +84,9 @@ const App: React.FC = () => {
       setLoadingStep('Dorking Platform Matrix...');
       addLog(`Type: ${searchType.toUpperCase()}`);
       addLog(`Target: ${finalQuery || 'Multi-Vector'}`);
-      if (selectedPlatforms.length > 0) addLog(`Scope: ${selectedPlatforms.join(' | ')}`);
-      else addLog(`Scope: GLOBAL_OMNI_CHANNEL`);
+      
+      const platformsToUse = selectedPlatforms.length > 0 ? selectedPlatforms : availablePlatforms.map(p => p.name as PlatformType);
+      addLog(`Scanning: ${platformsToUse.length} Platforms`);
 
       const data = await searchGlobalIntel({
         query: finalQuery,
@@ -112,19 +117,11 @@ const App: React.FC = () => {
 
     } catch (err: any) {
       console.error(err);
-      let errorMsg = "Network uplink failed. Please retry.";
+      let errorMsg = "System Link Failed. Please retry.";
       
-      if (err.message?.includes("API_KEY")) {
-        errorMsg = "DEPLOYMENT ERROR: Missing API Key.";
-        addLog("FATAL: Auth Key Missing.");
-      } else if (err.message?.includes("429")) {
-         errorMsg = "SYSTEM OVERLOAD: Too many requests.";
-         addLog("FATAL: Rate Limit Hit.");
-      } else if (err.message?.includes("NO_SIGNALS")) {
-         errorMsg = "NO INTELLIGENCE FOUND: Try broader keywords.";
-         addLog("INFO: Zero signals in current sector.");
-      }
-
+      if (err.message?.includes("API_KEY")) errorMsg = "DEPLOYMENT ERROR: Missing API Key.";
+      else if (err.message?.includes("429")) errorMsg = "SYSTEM OVERLOAD: Too many requests.";
+      
       setError(errorMsg);
       addLog(`ERROR: ${err.message || 'Unknown Failure'}`);
     } finally {
@@ -154,7 +151,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Link Confirmation Modal */}
+      {/* Confirmation Modal */}
       {confirmingLink && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-black/95 backdrop-blur-3xl animate-fadeIn">
           <div className="bg-[#05050a] border border-indigo-500/30 rounded-[3rem] p-12 max-w-2xl w-full shadow-[0_0_100px_rgba(79,70,229,0.2)] space-y-10 relative overflow-hidden">
@@ -164,7 +161,7 @@ const App: React.FC = () => {
                 <div className="inline-flex items-center justify-center w-28 h-28 rounded-3xl bg-indigo-500/5 border border-indigo-500/20 text-indigo-400 mb-8">
                    <i className={`fa-brands fa-${confirmingLink.platform.toLowerCase().replace('reddit', 'reddit-alien').replace('x', 'x-twitter')} text-5xl`}></i>
                 </div>
-                <h3 className="text-4xl font-black text-white uppercase tracking-tight mb-2">{confirmingLink.title}</h3>
+                <h3 className="text-4xl font-black text-white uppercase tracking-tight mb-2 leading-tight">{confirmingLink.title}</h3>
                 <div className="flex justify-center gap-3">
                     <span className="text-[10px] font-black bg-white/5 px-4 py-2 rounded-full uppercase tracking-widest text-gray-400">{confirmingLink.platform}</span>
                     <span className="text-[10px] font-black bg-indigo-500/10 px-4 py-2 rounded-full uppercase tracking-widest text-indigo-400">{confirmingLink.source.type}</span>
@@ -172,28 +169,28 @@ const App: React.FC = () => {
              </div>
 
              <div className="space-y-4">
-                 <div className="bg-black/50 p-6 rounded-3xl border border-white/5">
-                    <span className="text-[9px] uppercase font-black text-gray-600 block mb-2 tracking-widest">Target URL</span>
-                    <div className="font-mono text-xs text-indigo-300 break-all select-all">{confirmingLink.url}</div>
+                 <div className="bg-black/50 p-6 rounded-3xl border border-white/5 flex gap-4 items-center">
+                    <div className="flex-1 font-mono text-xs text-indigo-300 break-all select-all">{confirmingLink.url}</div>
+                    <button onClick={() => copyToClipboard(confirmingLink.url)} className="text-gray-500 hover:text-white transition-colors"><i className="fa-solid fa-copy"></i></button>
                  </div>
                  
                  {confirmingLink.source.context && (
                     <div className="bg-amber-500/5 p-6 rounded-3xl border border-amber-500/10">
-                        <span className="text-[9px] uppercase font-black text-amber-500/60 block mb-2 tracking-widest">Intel Context</span>
-                        <div className="text-sm text-gray-300 italic">{confirmingLink.source.context}</div>
+                        <span className="text-[9px] uppercase font-black text-amber-500/60 block mb-2 tracking-widest">Context</span>
+                        <div className="text-sm text-gray-300 italic">"{confirmingLink.source.context}"</div>
                     </div>
                  )}
              </div>
 
              <div className="flex gap-4 pt-4">
-                <button onClick={() => setConfirmingLink(null)} className="flex-1 py-6 bg-white/5 rounded-3xl font-black text-[11px] uppercase text-gray-400 hover:text-white transition-all border border-transparent hover:border-white/10 tracking-widest">Cancel</button>
-                <button onClick={() => { window.open(confirmingLink.url, '_blank'); setConfirmingLink(null); }} className="flex-1 py-6 bg-indigo-600 text-white rounded-3xl font-black text-[11px] uppercase shadow-2xl hover:bg-indigo-500 transition-all tracking-widest">Connect</button>
+                <button onClick={() => setConfirmingLink(null)} className="flex-1 py-6 bg-white/5 rounded-3xl font-black text-[11px] uppercase text-gray-400 hover:text-white transition-all">Cancel</button>
+                <button onClick={() => { window.open(confirmingLink.url, '_blank'); setConfirmingLink(null); }} className="flex-1 py-6 bg-indigo-600 text-white rounded-3xl font-black text-[11px] uppercase shadow-2xl hover:bg-indigo-500 transition-all">Connect</button>
              </div>
           </div>
         </div>
       )}
 
-      {/* Terminal Sidebar */}
+      {/* Sidebar */}
       <aside className={`fixed top-0 bottom-0 right-0 z-[120] bg-[#05050a]/98 border-l border-white/5 transition-all duration-700 backdrop-blur-4xl shadow-2xl ${isSidebarOpen ? 'w-[450px]' : 'w-0 invisible translate-x-full'}`}>
         <div className="p-10 space-y-10 h-full overflow-y-auto flex flex-col no-scrollbar">
           <div className="flex items-center justify-between">
@@ -201,7 +198,7 @@ const App: React.FC = () => {
               <span className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em]">COMMAND LOG</span>
               <span className="text-[9px] font-bold text-gray-700 uppercase">SYSTEM ACTIVE</span>
             </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-gray-500 hover:text-white transition-all hover:bg-white/10"><i className="fa-solid fa-angles-right"></i></button>
+            <button onClick={() => setIsSidebarOpen(false)} className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-gray-500 hover:text-white transition-all"><i className="fa-solid fa-angles-right"></i></button>
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col gap-4">
@@ -229,11 +226,10 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <main className={`transition-all duration-700 p-6 lg:p-16 max-w-[1600px] mx-auto flex flex-col relative z-10 ${isSidebarOpen ? 'lg:mr-[450px]' : ''}`}>
         
-        {/* Header */}
-        <header className="flex justify-between items-end mb-20">
+        <header className="flex justify-between items-end mb-16">
            <div className="flex items-center gap-8">
               {!isSidebarOpen && (
                 <button onClick={() => setIsSidebarOpen(true)} className="w-16 h-16 bg-[#0a0a10] border border-white/10 rounded-2xl text-indigo-500 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-2xl"><i className="fa-solid fa-bars-staggered text-xl"></i></button>
@@ -248,10 +244,9 @@ const App: React.FC = () => {
            </div>
         </header>
 
-        {/* Control Interface */}
+        {/* Filters */}
         <div className="space-y-12 mb-32">
            
-           {/* Platform Matrix */}
            <div className="bg-[#0a0a10] border border-white/5 rounded-[3rem] p-10 relative overflow-hidden">
               <div className="flex justify-between items-center mb-8">
                   <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-3">
@@ -280,7 +275,6 @@ const App: React.FC = () => {
               </div>
            </div>
 
-           {/* Mode Selection */}
            <div className="flex justify-center gap-3 flex-wrap">
               {[
                 { id: 'medical-recon', label: 'Medical Groups', icon: 'fa-user-md' },
@@ -296,7 +290,6 @@ const App: React.FC = () => {
               ))}
            </div>
 
-           {/* Main Search Input */}
            <div className="relative group max-w-5xl mx-auto">
               <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 rounded-[3.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
               <div className="relative flex bg-[#05050a] rounded-[3.5rem] p-3 items-center shadow-2xl">
@@ -317,7 +310,6 @@ const App: React.FC = () => {
               </div>
            </div>
 
-           {/* Geo Filters */}
            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 max-w-6xl mx-auto">
               {[
                 { val: location, set: setLocation, ph: 'Country / Region', icon: 'fa-globe' },
@@ -333,11 +325,10 @@ const App: React.FC = () => {
            </div>
         </div>
 
-        {/* Results Engine */}
+        {/* Results */}
         {result && (
           <div className="animate-fadeIn pb-40">
              
-             {/* Stats Bar */}
              <div className="flex flex-wrap justify-center gap-8 mb-16 border-b border-white/5 pb-16">
                 {[
                   { label: 'Total Signals', val: result.stats.totalFound, color: 'text-white' },
@@ -352,7 +343,6 @@ const App: React.FC = () => {
                 ))}
              </div>
 
-             {/* Links Grid */}
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {result.links.length === 0 ? (
                   <div className="col-span-full py-40 text-center">
@@ -363,7 +353,6 @@ const App: React.FC = () => {
                   result.links.map(link => (
                     <div key={link.id} className="group bg-[#0a0a10] border border-white/5 rounded-[2.5rem] p-10 hover:border-indigo-500/30 hover:bg-[#0f0f16] transition-all duration-300 flex flex-col relative overflow-hidden shadow-2xl">
                        
-                       {/* Context Badge if Mention */}
                        {link.source.type === 'Mention' && (
                          <div className="absolute top-0 right-0 bg-amber-500/10 border-l border-b border-amber-500/20 px-6 py-2 rounded-bl-2xl">
                             <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2">
@@ -372,7 +361,6 @@ const App: React.FC = () => {
                          </div>
                        )}
 
-                       {/* Direct Link Badge */}
                        {link.source.type === 'Direct' && (
                          <div className="absolute top-0 right-0 bg-emerald-500/10 border-l border-b border-emerald-500/20 px-6 py-2 rounded-bl-2xl">
                             <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
@@ -381,7 +369,6 @@ const App: React.FC = () => {
                          </div>
                        )}
 
-                       {/* Icon & Platform */}
                        <div className="flex items-center gap-6 mb-8">
                           <div className="w-16 h-16 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-3xl text-gray-500 group-hover:text-white group-hover:bg-indigo-600 group-hover:border-indigo-500 transition-all">
                              <i className={`fa-brands fa-${link.platform.toLowerCase().replace('reddit', 'reddit-alien').replace('x', 'x-twitter')}`}></i>
@@ -392,13 +379,11 @@ const App: React.FC = () => {
                           </div>
                        </div>
 
-                       {/* Content */}
                        <div className="flex-1 mb-8">
                           <h3 className="text-lg font-bold text-gray-200 mb-4 line-clamp-2 leading-tight">{link.title}</h3>
                           <p className="text-xs text-gray-500 font-medium leading-relaxed line-clamp-3">{link.description}</p>
                        </div>
 
-                       {/* Source Context (The "Where" part) */}
                        <div className="bg-black/40 rounded-2xl p-4 border border-white/5 mb-8">
                           <div className="flex items-center gap-2 mb-2 opacity-50">
                              <i className="fa-solid fa-eye text-[10px] text-indigo-400"></i>
@@ -409,7 +394,6 @@ const App: React.FC = () => {
                           </div>
                        </div>
 
-                       {/* Action */}
                        <button onClick={() => setConfirmingLink(link)} className="w-full py-4 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all border border-transparent hover:border-white/10">
                           Access Node
                        </button>
@@ -420,7 +404,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Error State */}
         {error && (
           <div className="text-center py-20 bg-[#0a0a10] border border-rose-500/20 rounded-[3rem] mt-20 animate-fadeIn">
              <i className="fa-solid fa-triangle-exclamation text-5xl text-rose-500 mb-6"></i>
@@ -432,7 +415,6 @@ const App: React.FC = () => {
 
       </main>
 
-      {/* Footer */}
       <footer className="fixed bottom-8 left-0 right-0 text-center pointer-events-none z-50 mix-blend-difference">
          <span className="text-[10px] font-black text-white/30 uppercase tracking-[1em]">SCOUT OPS v7.5 ULTIMATE</span>
       </footer>
