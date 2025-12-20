@@ -31,6 +31,14 @@ const SEARCH_SCOPES: { id: SearchScope; label: string; icon: string }[] = [
   { id: 'profiles', label: 'Profiles', icon: 'fa-solid fa-id-card' },
 ];
 
+// Simulated accounts found on the device
+const SIMULATED_ACCOUNTS = [
+  { id: 'acc_01', name: 'Scout Operator', email: 'operator@gmail.com', initial: 'OP', color: 'bg-emerald-600' },
+  { id: 'acc_02', name: 'Ahmed Khalid', email: 'ahmed.dev@gmail.com', initial: 'AK', color: 'bg-blue-600' },
+  { id: 'acc_03', name: 'Work Profile', email: 'research@unit-7.org', initial: 'WP', color: 'bg-purple-600' },
+  { id: 'acc_04', name: 'Crypto Anon', email: '0xGhost@proton.me', initial: 'CA', color: 'bg-slate-600' }
+];
+
 // --- Visual Components ---
 
 const ScanOverlay = () => (
@@ -53,6 +61,7 @@ const ConnectModal = ({
 }) => {
   const [mode, setMode] = useState<'selection' | 'social_oauth' | 'manual'>('selection');
   const [authProvider, setAuthProvider] = useState<'google' | 'facebook' | 'apple' | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState(SIMULATED_ACCOUNTS[0]);
   
   // Manual Flow State
   const [manualStep, setManualStep] = useState<'form' | 'security' | 'verify'>('form');
@@ -62,7 +71,7 @@ const ConnectModal = ({
   const [manualCode, setManualCode] = useState('');
   
   // Social Flow State
-  const [oauthStep, setOauthStep] = useState<'account_picker' | 'connecting' | 'success'>('account_picker');
+  const [oauthStep, setOauthStep] = useState<'account_picker' | 'switch_account' | 'connecting' | 'success'>('account_picker');
 
   if (!platform) return null;
   const platformData = ALL_PLATFORMS.find(p => p.id === platform);
@@ -75,7 +84,8 @@ const ConnectModal = ({
       setOauthStep('account_picker');
   };
 
-  const handleSocialAccountClick = () => {
+  const handleSocialAccountClick = (account: typeof SIMULATED_ACCOUNTS[0]) => {
+      setSelectedAccount(account);
       setOauthStep('connecting');
       // Simulate network request
       setTimeout(() => {
@@ -85,8 +95,8 @@ const ConnectModal = ({
               onConnect({
                   platform,
                   type: 'email',
-                  value: 'scout_operator',
-                  email: 'operator@gmail.com',
+                  value: account.name,
+                  email: account.email,
                   authProvider: authProvider!,
                   verifiedAt: new Date().toISOString()
               });
@@ -186,6 +196,8 @@ const ConnectModal = ({
             {/* SCREEN 2: OAUTH SIMULATION (Account Picker) */}
             {mode === 'social_oauth' && (
                 <div className="animate-in slide-in-from-right-10 duration-300">
+                    
+                    {/* Step 2A: Default Picker (Last Used) */}
                     {oauthStep === 'account_picker' && (
                         <>
                             <div className="text-center mb-6">
@@ -195,28 +207,74 @@ const ConnectModal = ({
                             </div>
 
                             <div className="space-y-2">
-                                {/* Simulated Account Row */}
+                                {/* Simulated Primary Account Row */}
                                 <div 
-                                    onClick={handleSocialAccountClick}
+                                    onClick={() => handleSocialAccountClick(SIMULATED_ACCOUNTS[0])}
                                     className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 cursor-pointer border border-transparent hover:border-slate-600 transition-all group"
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                                        OP
+                                    <div className={`w-10 h-10 rounded-full ${SIMULATED_ACCOUNTS[0].color} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
+                                        {SIMULATED_ACCOUNTS[0].initial}
                                     </div>
                                     <div className="flex-1">
-                                        <div className="text-sm font-bold text-slate-200 group-hover:text-white">Scout Operator</div>
-                                        <div className="text-xs text-slate-500">operator@gmail.com</div>
+                                        <div className="text-sm font-bold text-slate-200 group-hover:text-white">{SIMULATED_ACCOUNTS[0].name}</div>
+                                        <div className="text-xs text-slate-500">{SIMULATED_ACCOUNTS[0].email}</div>
                                     </div>
                                     <i className="fa-solid fa-chevron-right text-slate-600 group-hover:text-white text-xs"></i>
                                 </div>
 
-                                <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 cursor-pointer border border-transparent hover:border-slate-600 transition-all opacity-60 hover:opacity-100">
+                                {/* Use Another Account Button */}
+                                <div 
+                                    onClick={() => setOauthStep('switch_account')}
+                                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 cursor-pointer border border-transparent hover:border-slate-600 transition-all opacity-80 hover:opacity-100"
+                                >
                                     <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-sm">
                                         <i className="fa-solid fa-user-plus"></i>
                                     </div>
                                     <div className="text-sm font-medium text-slate-400">Use another account</div>
                                 </div>
                             </div>
+                        </>
+                    )}
+
+                    {/* Step 2B: Full Account List (On Device) */}
+                    {oauthStep === 'switch_account' && (
+                        <>
+                             <div className="flex items-center mb-4 border-b border-slate-700 pb-2">
+                                <button onClick={() => setOauthStep('account_picker')} className="text-slate-400 hover:text-white mr-3">
+                                    <i className="fa-solid fa-arrow-left"></i>
+                                </button>
+                                <div>
+                                    <h3 className="text-white font-bold text-sm">Accounts on this device</h3>
+                                    <p className="text-[10px] text-slate-400">Select an account to authorize.</p>
+                                </div>
+                             </div>
+
+                             <div className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                                {SIMULATED_ACCOUNTS.map((acc) => (
+                                    <div 
+                                        key={acc.id}
+                                        onClick={() => handleSocialAccountClick(acc)}
+                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 cursor-pointer border border-transparent hover:border-slate-600 transition-all group"
+                                    >
+                                        <div className={`w-9 h-9 rounded-full ${acc.color} flex items-center justify-center text-white font-bold text-xs shadow`}>
+                                            {acc.initial}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-bold text-slate-200 group-hover:text-white truncate">{acc.name}</div>
+                                            <div className="text-[10px] text-slate-500 truncate">{acc.email}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                <div className="border-t border-slate-700 my-2 pt-2">
+                                    <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 cursor-pointer opacity-60 hover:opacity-100">
+                                        <div className="w-9 h-9 rounded-full bg-transparent border border-dashed border-slate-500 flex items-center justify-center text-slate-400 text-xs">
+                                            <i className="fa-solid fa-plus"></i>
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-400">Add account to device</div>
+                                    </div>
+                                </div>
+                             </div>
                         </>
                     )}
 
@@ -227,7 +285,7 @@ const ConnectModal = ({
                                 <div className="absolute inset-0 border-t-4 border-indigo-500 rounded-full animate-spin"></div>
                             </div>
                             <div>
-                                <h4 className="text-white font-bold">Signing in as Scout Operator...</h4>
+                                <h4 className="text-white font-bold">Signing in as {selectedAccount.name}...</h4>
                                 <p className="text-xs text-slate-500 mt-1">Sharing credentials with {platform}</p>
                             </div>
                         </div>
