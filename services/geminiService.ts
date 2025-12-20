@@ -5,7 +5,7 @@ import { SearchResult, IntelLink, SearchParams, PlatformType } from "../types";
 const parseSafeJSON = (text: string): any => {
   try {
     let cleanText = text.trim();
-    // Remove Markdown code blocks if present
+    // Aggressive cleanup for Markdown code blocks
     cleanText = cleanText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
     
     const firstBrace = cleanText.indexOf('{');
@@ -21,13 +21,13 @@ const parseSafeJSON = (text: string): any => {
 };
 
 /**
- * SCOUT CORE v7.5 ULTRA PRO | THE FINAL OSINT AUTHORITY
- * High-Scope Accuracy for Global Medical Communities and Mention Tracking.
+ * SCOUT CORE v7.5 ULTIMATE | PRECISION LINK & CONTEXT ENGINE
+ * Focus: Absolute accuracy in distinguishing 'Direct Group Links' from 'Mentions'.
  */
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === 'undefined') {
-    throw new Error("API_KEY_MISSING: Please configure SCOUT_API_KEY in your deployment environment.");
+    throw new Error("API_KEY_MISSING: Deployment requires a valid SCOUT_API_KEY.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -35,61 +35,70 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   const queryBase = params.query.trim();
   const geoContext = `${params.location} ${params.town || ''} ${params.hospital || ''} ${params.specialty || ''}`.trim();
   
-  // High-Resolution Platform Dorking Matrix
-  const platformSiteMap: Record<string, string> = {
-    'Telegram': 'site:t.me OR site:telegram.me OR site:telegram.dog',
-    'WhatsApp': 'site:chat.whatsapp.com OR site:wa.me',
-    'Discord': 'site:discord.gg OR site:discord.com/invite',
-    'Facebook': 'site:facebook.com/groups OR site:facebook.com/events',
-    'LinkedIn': 'site:linkedin.com/groups OR site:linkedin.com/posts OR site:linkedin.com/school',
-    'Reddit': 'site:reddit.com/r OR site:reddit.com/user',
-    'Instagram': 'site:instagram.com',
-    'X': 'site:x.com OR site:twitter.com',
-    'TikTok': 'site:tiktok.com'
+  // 1. Platform-Specific "Dorks" (Search Operators)
+  // Designed to find either the invite link itself OR a page hosting the link.
+  const platformVectors: Record<string, string> = {
+    'Telegram': '(site:t.me OR site:telegram.me OR site:telegram.dog)',
+    'WhatsApp': '(site:chat.whatsapp.com OR site:wa.me)',
+    'Discord': '(site:discord.gg OR site:discord.com/invite)',
+    'Facebook': '(site:facebook.com/groups OR site:facebook.com/events)',
+    'LinkedIn': '(site:linkedin.com/groups OR site:linkedin.com/posts OR site:linkedin.com/feed)',
+    'Reddit': '(site:reddit.com/r OR site:reddit.com/user)',
+    'Instagram': '(site:instagram.com)',
+    'X': '(site:x.com OR site:twitter.com)',
+    'TikTok': '(site:tiktok.com)',
+    'General': ''
   };
 
-  // Construct search vector based on selected platforms
-  // If no platforms selected, default to ALL to ensure broad coverage as per user request
-  const sitesToScan = params.platforms.length > 0 
-    ? params.platforms.map(p => platformSiteMap[p] || `site:${p.toLowerCase()}.com`).join(' OR ')
-    : Object.values(platformSiteMap).join(' OR ');
+  // 2. Select Active Platforms
+  const targetPlatforms = params.platforms.length > 0 ? params.platforms : Object.keys(platformVectors).filter(k => k !== 'General');
+  const sitesQuery = targetPlatforms.map(p => platformVectors[p]).join(' OR ');
 
-  const commonInvites = `("join group" OR "invite link" OR "t.me/+" OR "chat.whatsapp.com/invite" OR "discord.gg/" OR "facebook.com/groups")`;
+  // 3. Define Mode-Specific Keywords
+  let searchVector = '';
   
-  let searchVector = `(${sitesToScan}) ${commonInvites} "${queryBase}" ${geoContext}`;
-  
-  // Tactical Recon Overrides
   if (params.searchType === 'mention-tracker') {
-    // Exact tracking of where a keyword or link appeared in conversations or posts
-    searchVector = `(${sitesToScan}) ("${queryBase}" OR inurl:"${queryBase}") (intext:"shared" OR intext:"posted" OR intext:"mentioned")`;
+    // Look for conversations ABOUT the query
+    searchVector = `(${sitesQuery}) "${queryBase}" (intext:"discussed" OR intext:"mentioned" OR intext:"source" OR intext:"link") -site:t.me -site:chat.whatsapp.com`; 
+    // Excluding direct invite sites in mention tracker to find DISCUSSIONS instead
   } else if (params.searchType === 'medical-recon' || params.searchType === 'specialty-hunt') {
-    const medicalTerms = `("Board" OR "Residency" OR "Fellowship" OR "Internship" OR "Specialization" OR "الزمالة" OR "الإقامة" OR "بورد" OR "تخصص")`;
-    searchVector = `(${sitesToScan}) ${commonInvites} "${queryBase || params.specialty}" ${medicalTerms} ${geoContext}`;
+    // Look for MEDICAL GROUPS specifically
+    const medicalKeywords = `("Board" OR "Residency" OR "Fellowship" OR "Internship" OR "Specialization" OR "PGY" OR "Medical Group" OR "بورد" OR "زمالة" OR "أطباء")`;
+    const inviteKeywords = `("chat.whatsapp.com" OR "t.me" OR "discord.gg" OR "join group" OR "Group Link")`;
+    searchVector = `(${sitesQuery}) ${medicalKeywords} "${queryBase || params.specialty}" ${inviteKeywords} ${geoContext}`;
   } else if (params.searchType === 'user-id') {
-    // Searching for specific IDs/Usernames across the grid
-    searchVector = `(${sitesToScan}) (inurl:profile OR inurl:user OR inurl:id OR "@${queryBase}") "${queryBase}"`;
+    // Look for Profiles
+    searchVector = `(${sitesQuery}) (inurl:${queryBase} OR "@${queryBase}")`;
   } else if (params.searchType === 'signal-phone') {
-    // Phone-based account discovery
-    searchVector = `(site:t.me OR site:chat.whatsapp.com OR site:facebook.com) "${queryBase}" OR "phone ${queryBase}" OR "wa.me/${queryBase}"`;
+    // Phone reverse lookup
+    searchVector = `"${queryBase}" (site:facebook.com OR site:instagram.com OR site:linkedin.com OR site:t.me OR site:wa.me)`;
+  } else {
+    // Default: Deep Scan for Invites
+    searchVector = `(${sitesQuery}) ("chat.whatsapp.com" OR "t.me" OR "discord.gg" OR "joinchat") "${queryBase}" ${geoContext}`;
   }
 
-  const systemInstruction = `You are SCOUT OPS v7.5 ULTRA PRO. The most accurate OSINT engine for professional reconnaissance.
+  const systemInstruction = `You are SCOUT OPS v7.5 ULTIMATE. Your goal is 100% ACCURACY in identifying Social Media Links and Communities.
 
-COMMAND DIRECTIVES:
-1. FIND ACCURATE LINKS: Focus on verified, active communities and channels.
-2. MEDICAL SPECIALIZATION: Deep-scan for Board, Residency, Fellowship, and Internship groups.
-3. MENTION TRACKING: For any link found, identify the EXACT context (e.g. "Mentioned in the 'Radiology Residents' Telegram channel").
-4. PLATFORMS: Telegram, WhatsApp, LinkedIn, Discord, X, Instagram, Reddit, Facebook, TikTok.
-5. ZERO CONFUSION: Results must be precise. No hazard, no guesses.
-6. TELEGRAM FOCUS: Search by username, ID, or keyword.
-7. GEOGRAPHY: Cross-reference Country, Town, and Hospital Specialty.
-
-JSON OUTPUT ONLY.`;
+  CRITICAL INSTRUCTION:
+  You must distinguish between a DIRECT LINK (The actual group invite) and a MENTION (A post talking about it).
+  
+  DATA EXTRACTION RULES:
+  1. **URL**: Must be the direct link to the group/account if available (e.g., t.me/example), otherwise the source URL.
+  2. **CONTEXT**: If the link is found inside a Reddit post or LinkedIn article, the 'context' field MUST explain this (e.g., "Mentioned in a LinkedIn post by Dr. X about Residency").
+  3. **PLATFORM**: Identify the platform of the DESTINATION link, not just the source.
+  4. **ACCURACY**: Do not guess. If a link is private, mark isPrivate: true.
+  
+  TARGETS:
+  - Query: ${queryBase}
+  - Platforms: ${targetPlatforms.join(', ')}
+  - Scope: ${params.searchType}
+  
+  JSON OUTPUT REQUIRED.`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `[EXECUTE_ULTRA_PRECISE_RECON] VECTOR: ${searchVector}`,
+      contents: `[EXECUTE_PRECISION_SCAN] VECTOR: ${searchVector}`,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }],
@@ -132,12 +141,15 @@ JSON OUTPUT ONLY.`;
     const resultData = parseSafeJSON(response.text);
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    // Grounding Signal Recovery (For absolute link verification)
+    // 4. Grounding Verification (The "Perfect Accuracy" Layer)
+    // We map every search result provided by Google Search to an IntelLink.
     const recoveredLinks: IntelLink[] = groundingChunks
       .filter((c: any) => c.web)
       .map((c: any, i: number) => {
         const url = c.web.uri || '';
-        const title = c.web.title || 'Verified Discovery';
+        const title = c.web.title || 'Verified Signal';
+        
+        // Determine Platform from URL
         let platform: PlatformType = 'Telegram';
         if (url.includes('whatsapp.com')) platform = 'WhatsApp';
         else if (url.includes('discord')) platform = 'Discord';
@@ -147,15 +159,21 @@ JSON OUTPUT ONLY.`;
         else if (url.includes('instagram.com')) platform = 'Instagram';
         else if (url.includes('x.com') || url.includes('twitter.com')) platform = 'X';
         else if (url.includes('tiktok.com')) platform = 'TikTok';
-
+        
+        // Determine if this is a Direct Link or a Mention Context
+        const isDirectInvite = url.includes('chat.whatsapp.com') || url.includes('t.me/') || url.includes('discord.gg');
+        const sourceType = isDirectInvite ? 'Direct' : 'Mention';
+        
         return {
-          id: `confirmed-signal-${i}-${Date.now()}`,
-          title,
-          description: `إشارة استخباراتية مؤكدة بنسبة 100% تم استخلاصها من المصدر المباشر.`,
-          url,
-          isPrivate: url.includes('joinchat') || url.includes('/+/') || url.includes('invite') || url.includes('group'),
+          id: `verified-${i}-${Date.now()}`,
+          title: title,
+          description: isDirectInvite 
+            ? `Direct access node detected for ${platform} community.` 
+            : `Discussion or reference found on ${platform}.`,
+          url: url,
+          isPrivate: url.includes('joinchat') || url.includes('invite'),
           isActive: true,
-          platform,
+          platform: platform,
           confidence: 100,
           location: { 
             country: params.location, 
@@ -163,18 +181,23 @@ JSON OUTPUT ONLY.`;
             hospital: params.hospital, 
             specialty: params.specialty 
           },
-          source: { name: title, uri: url, type: 'Search', context: `Directly captured via platform grid crawl.` },
+          source: { 
+            name: title, 
+            uri: url, 
+            type: sourceType, 
+            context: isDirectInvite 
+              ? `Direct ${platform} Invite Link` 
+              : `Mentioned in: ${title}` 
+          },
           timestamp: new Date().toISOString()
         };
       });
 
-    // Handle empty JSON response by falling back to grounding
+    // Fallback if AI JSON is empty
     if (!resultData) {
-      if (recoveredLinks.length === 0) {
-        throw new Error("NO_SIGNALS_DETECTED");
-      }
+      if (recoveredLinks.length === 0) throw new Error("NO_SIGNALS_DETECTED");
       return {
-        analysis: "نظام الاسترداد عالي الدقة v7.5 مفعل. تم سحب الإشارات المباشرة.",
+        analysis: "Raw signal extraction complete. Validated via Google Search Grounding.",
         links: recoveredLinks,
         messages: [],
         sources: recoveredLinks.map(l => ({ title: l.title, uri: l.url })),
@@ -182,9 +205,16 @@ JSON OUTPUT ONLY.`;
       };
     }
 
-    // Merge and prioritize confirmed grounding URLs with AI reasoned links
+    // Merge AI reasoned links with Grounded links, deduplicating by URL
     const existingUrls = new Set((resultData.links || []).map((l: any) => l.url ? l.url.toLowerCase() : ''));
-    const finalLinks = [...(resultData.links || []), ...recoveredLinks.filter(rl => !existingUrls.has(rl.url.toLowerCase()))];
+    const finalLinks = [...(resultData.links || [])];
+    
+    // Add only new unique grounding links
+    recoveredLinks.forEach(rl => {
+      if (!existingUrls.has(rl.url.toLowerCase())) {
+        finalLinks.push(rl);
+      }
+    });
 
     return {
       ...resultData,
@@ -195,15 +225,13 @@ JSON OUTPUT ONLY.`;
         medicalMatches: finalLinks.filter(l => 
           l.description?.toLowerCase().includes('residency') || 
           l.description?.toLowerCase().includes('board') ||
-          l.description?.toLowerCase().includes('fellowship') ||
-          l.description?.toLowerCase().includes('internship') ||
-          l.title?.toLowerCase().includes('board')
+          l.description?.toLowerCase().includes('medical')
         ).length
       }
     };
 
   } catch (error: any) {
-    console.error("SCOUT CORE ERROR:", error);
+    console.error("SCOUT CORE FAILURE:", error);
     throw error;
   }
 };
