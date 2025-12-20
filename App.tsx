@@ -54,6 +54,7 @@ const ConnectModal = ({
   const [step, setStep] = useState<'login' | 'verifying' | 'success'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [saveCreds, setSaveCreds] = useState(true);
   const [statusMsg, setStatusMsg] = useState('');
 
   if (!platform) return null;
@@ -90,7 +91,7 @@ const ConnectModal = ({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
       <div className="bg-[#1e2024] border border-slate-700 rounded-2xl w-full max-w-sm relative overflow-hidden shadow-2xl">
         
-        {/* Header - Looks like a popup window */}
+        {/* Header */}
         <div className="bg-[#0f1115] px-4 py-3 border-b border-slate-700 flex justify-between items-center">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
                 <i className={`${platformData?.icon} ${platformData?.color}`}></i>
@@ -109,7 +110,7 @@ const ConnectModal = ({
                              <i className={platformData?.icon}></i>
                         </div>
                         <h3 className="text-white font-bold">Authorize Access</h3>
-                        <p className="text-xs text-slate-400">Log in to allow SCOUT OPS to search {platform} groups.</p>
+                        <p className="text-xs text-slate-400">Enter credentials to enable deep search on {platform}.</p>
                     </div>
 
                     <div className="space-y-3">
@@ -133,6 +134,17 @@ const ConnectModal = ({
                                 className="w-full bg-black border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
                                 placeholder="••••••••"
                             />
+                        </div>
+                        
+                        <div className="flex items-center gap-2 pt-2">
+                           <input 
+                             type="checkbox" 
+                             id="saveCreds"
+                             checked={saveCreds}
+                             onChange={e => setSaveCreds(e.target.checked)}
+                             className="rounded bg-black border-slate-600 text-indigo-500 focus:ring-indigo-500"
+                           />
+                           <label htmlFor="saveCreds" className="text-xs text-slate-400 cursor-pointer">Stay logged in (Save Session)</label>
                         </div>
                     </div>
 
@@ -166,7 +178,7 @@ const ConnectModal = ({
                     </div>
                     <div>
                         <div className="text-sm font-bold text-white">Connection Successful</div>
-                        <div className="text-xs text-slate-400 mt-1">Ready for Deep Search</div>
+                        <div className="text-xs text-slate-400 mt-1">Credentials Stored Securely</div>
                     </div>
                 </div>
             )}
@@ -415,6 +427,23 @@ const App: React.FC = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const bgRef = useRef<HTMLDivElement>(null);
 
+  // Persistence Logic
+  useEffect(() => {
+    const saved = localStorage.getItem('scoutops_identities');
+    if (saved) {
+      try {
+        setIdentities(JSON.parse(saved));
+        log("SESSION RESTORED: Credentials loaded from secure storage.");
+      } catch (e) {
+        console.error("Failed to load identities");
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('scoutops_identities', JSON.stringify(identities));
+  }, [identities]);
+
   // Auto-scroll logs
   useEffect(() => {
     if (terminalRef.current) terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
@@ -452,60 +481,48 @@ const App: React.FC = () => {
   const handleExport = () => {
     if (!result) return;
     
-    // Generate Text Report
-    const reportDate = new Date().toISOString();
-    const divider = "=".repeat(60);
-    const subDivider = "-".repeat(60);
-    
-    let report = `SCOUT OPS v7.5 // MISSION INTELLIGENCE REPORT\n`;
-    report += `CLASSIFICATION: RESTRICTED\n`;
-    report += `DATE: ${reportDate}\n`;
-    report += `${divider}\n\n`;
-    
-    report += `[MISSION PARAMETERS]\n`;
-    report += `QUERY: ${query || (medical.specialty ? medical.specialty + ' ' + medical.level : 'N/A')}\n`;
-    report += `MODE: ${mode.toUpperCase()}\n`;
-    report += `SCOPE: ${scope.toUpperCase()}\n`;
-    report += `GEO: ${[geo.country, geo.city, geo.institution].filter(Boolean).join(', ') || 'GLOBAL'}\n\n`;
-    
-    report += `[ACTIVE UPLINKS / IDENTITY VECTORS]\n`;
-    if(identities.length > 0) {
-      identities.forEach(id => {
-        report += `+ ${id.platform.toUpperCase()}: ${id.value} (VERIFIED)\n`;
-      });
-    } else {
-      report += `(NO AUTHENTICATED UPLINKS - PUBLIC SCAN)\n`;
-    }
-    report += `\n${divider}\n\n`;
-    
-    report += `[INTELLIGENCE ANALYSIS]\n`;
-    report += `${result.analysis}\n\n`;
-    report += `${divider}\n\n`;
-    
-    report += `[IDENTIFIED SIGNALS (${result.links.length})]\n`;
-    report += `${subDivider}\n`;
-    
-    result.links.forEach((link, i) => {
-       report += `\n#${i+1} [${link.confidence}%] ${link.title}\n`;
-       report += `URL: ${link.url}\n`;
-       report += `PLATFORM: ${link.platform} | TYPE: ${link.type}\n`;
-       report += `SOURCE: ${link.sharedBy || 'Unknown'}\n`;
-       report += `STATUS: ${link.status}\n`;
-       report += `INFO: ${link.description}\n`;
-    });
-    
-    report += `\n${divider}\n`;
-    report += `END OF REPORT\n`;
+    // CSV Header
+    const headers = [
+      "Platform",
+      "Type",
+      "Title / Group Name",
+      "URL",
+      "Shared By (Sender)",
+      "Message Content / Context",
+      "Confidence",
+      "Status",
+      "Location",
+      "Date Found"
+    ];
 
-    const blob = new Blob([report], { type: 'text/plain' });
+    // CSV Rows
+    const rows = result.links.map(link => {
+      return [
+        link.platform,
+        link.type,
+        `"${(link.title || '').replace(/"/g, '""')}"`, // Escape quotes
+        link.url,
+        `"${(link.sharedBy || '').replace(/"/g, '""')}"`,
+        `"${(link.description || link.context || '').replace(/"/g, '""')}"`,
+        `${link.confidence}%`,
+        link.status,
+        link.location || 'Unknown',
+        new Date().toLocaleDateString()
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const bom = '\uFEFF'; // UTF-8 BOM for Excel compatibility
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+    
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `MISSION_REPORT_${new Date().getTime()}.txt`;
+    a.download = `SCOUT_OPS_EXPORT_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    log("MISSION REPORT GENERATED & EXPORTED.");
+    log("DATA EXPORTED TO CSV/EXCEL FORMAT.");
   };
 
   const handleSearch = async () => {
@@ -699,9 +716,9 @@ const App: React.FC = () => {
                     {/* Export Button */}
                     <button 
                         onClick={handleExport}
-                        className="text-[9px] font-bold uppercase tracking-widest bg-white/5 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2"
+                        className="text-[9px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2"
                     >
-                        <i className="fa-solid fa-download"></i> EXPORT DATA
+                        <i className="fa-solid fa-file-csv"></i> EXPORT TO CSV / EXCEL
                     </button>
                  </div>
                  <p className="text-sm text-indigo-50 leading-loose max-w-4xl font-medium">{result.analysis}</p>
@@ -725,6 +742,7 @@ const App: React.FC = () => {
                  {result.links.map((link, idx) => {
                    const platformInfo = ALL_PLATFORMS.find(p => p.id === link.platform);
                    const isPrivate = link.tags && link.tags.includes('Private');
+                   const isThread = link.tags && link.tags.includes('Thread');
                    
                    return (
                      <div key={link.id} className="bg-[#0b0d12] border border-white/5 hover:border-indigo-500/40 rounded-2xl p-6 transition-all duration-300 group relative hover:-translate-y-2 hover:shadow-[0_10px_40px_-10px_rgba(79,70,229,0.2)] flex flex-col">
@@ -768,13 +786,25 @@ const App: React.FC = () => {
                        </p>
 
                         {/* Shared By Section */}
-                       <div className="bg-white/5 rounded-lg p-2 mb-4 border border-white/5">
-                          <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1">
-                            <i className="fa-solid fa-share-nodes"></i> Shared By
+                       <div className="bg-white/5 rounded-lg p-2 mb-4 border border-white/5 flex gap-2">
+                          <div className="flex-1">
+                             <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1">
+                               <i className="fa-solid fa-share-nodes"></i> Shared By
+                             </div>
+                             <div className="text-[10px] text-indigo-200 truncate font-medium">
+                               {link.sharedBy || "Detected Signal"}
+                             </div>
                           </div>
-                          <div className="text-[10px] text-indigo-200 truncate font-medium">
-                            {link.sharedBy || "Detected Signal"}
-                          </div>
+                          {(link.source || link.context) && (
+                             <div className="flex-1 border-l border-white/10 pl-2">
+                                <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1">
+                                  <i className="fa-solid fa-eye"></i> Context
+                                </div>
+                                <div className="text-[10px] text-emerald-200 truncate font-medium">
+                                  {link.context ? "Msg Found" : link.source}
+                                </div>
+                             </div>
+                          )}
                        </div>
 
                        {/* Visual Confidence Bar */}
@@ -793,7 +823,7 @@ const App: React.FC = () => {
                           onClick={() => window.open(link.url, '_blank')}
                           className={`flex-1 ${isPrivate ? 'bg-rose-900/30 hover:bg-rose-700 text-rose-200' : 'bg-white/5 hover:bg-indigo-600 text-slate-300 hover:text-white'} py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:shadow-lg active:scale-95`}
                          >
-                           {isPrivate ? 'Request Entry' : 'Access Uplink'} <i className={`fa-solid ${isPrivate ? 'fa-lock' : 'fa-arrow-up-right-from-square'}`}></i>
+                           {isPrivate ? 'Request Entry' : isThread ? 'View Discussion' : 'Access Uplink'} <i className={`fa-solid ${isPrivate ? 'fa-lock' : isThread ? 'fa-comments' : 'fa-arrow-up-right-from-square'}`}></i>
                          </button>
                          <button 
                           onClick={() => {

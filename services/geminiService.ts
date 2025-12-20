@@ -18,130 +18,124 @@ const parseSafeJSON = (text: string): any => {
   }
 };
 
-// Advanced "Dork" Builder - Optimized for GROUPS & COMMUNITIES (No Documents)
+// --- ALGORITHM V2: DEEP CONVERSATIONAL VECTOR ---
 const buildSearchVector = (params: SearchParams): string => {
-  const { query, mode, scope, platforms, location, medicalContext, identities } = params;
+  const { query, mode, platforms, location, medicalContext, identities } = params;
   
-  // 1. Define Platform Footprints (Prioritize Invite/Group URLs)
-  // UPDATED: Telegram footprint now explicitly targets private invite patterns (t.me/+)
-  const footprints: Record<string, string> = {
-    'Telegram': '(site:t.me/joinchat OR site:t.me/+ OR "t.me/+" OR "t.me/joinchat" OR site:telegram.me)',
-    'WhatsApp': '(site:chat.whatsapp.com)',
-    'Discord': '(site:discord.gg OR site:discord.com/invite)',
-    'Facebook': '(site:facebook.com/groups)',
-    'LinkedIn': '(site:linkedin.com/groups OR "linkedin.com/groups")',
-    'X': '(site:twitter.com OR site:x.com) ("join link" OR "group link" OR "whatsapp group" OR "telegram channel")',
-    'Instagram': '(site:instagram.com)',
-    'Reddit': '(site:reddit.com/r/)',
-    'Signal': '(site:signal.group)',
-    'TikTok': '(site:tiktok.com)'
+  // 1. PLATFORM DEFINITIONS & CONVERSATIONAL TARGETS
+  // We don't just search the platform itself; we search for *mentions* of the platform's invite links on *other* networks.
+  // Example: Searching for "t.me" (Telegram) links inside "twitter.com" threads.
+  
+  const platformSignatures: Record<string, string> = {
+    'Telegram': '("t.me/+" OR "t.me/joinchat" OR "telegram.me" OR "telegram group")',
+    'WhatsApp': '("chat.whatsapp.com" OR "whatsapp group")',
+    'Discord': '("discord.gg" OR "discord.com/invite")',
+    'Facebook': '(site:facebook.com/groups OR "facebook group")',
+    'LinkedIn': '(site:linkedin.com/groups OR "linkedin group")',
+    'X': '(site:x.com OR site:twitter.com)', // X is usually a source of links, not a destination for groups itself
+    'Signal': '("signal.group")',
   };
 
-  const selectedFootprints = platforms.map(p => footprints[p]).join(' OR ');
-  const platformScope = selectedFootprints ? `(${selectedFootprints})` : '';
+  // 2. CONVERSATIONAL KEYWORDS (The "Human" Element)
+  // Phrases people use when sharing or asking for links in threads/comments.
+  const conversationalEnglish = '("anyone has link" OR "dm me link" OR "link in comments" OR "group link" OR "invite link" OR "joined" OR "discussion thread")';
+  const conversationalArabic = '("رابط القروب" OR "تجمع" OR "مين عنده الرابط" OR "الرابط بالخاص" OR "قروب واتس" OR "قناة تليجرام" OR "رابط الدعوة")';
+  const conversationLayer = `(${conversationalEnglish} OR ${conversationalArabic})`;
 
-  // 2. Location String (Strict Filter)
-  const locStr = [location?.country, location?.city, location?.institution]
-    .filter(Boolean)
-    .map(s => `"${s}"`)
-    .join(' AND ');
-
-  // 3. Identity Augmentation & Private Group Targeting
-  // If Telegram is selected, we specifically boost "private" keywords to find leaked invite links
-  const isTelegram = platforms.includes('Telegram');
-  const privateKeywords = isTelegram ? '("private group" OR "invite only" OR "join link" OR "t.me/+" OR "confidential")' : '';
-  const authKeywords = identities.length > 0 ? "OR \"confidential\"" : "";
-
-  // 4. Scope Logic - STRICTLY GROUPS/CHANNELS
-  let scopeKeywords = "";
-  if (scope === 'channels') {
-    scopeKeywords = '(channel OR broadcast OR "subscriber count" OR "join channel")';
-  } else if (scope === 'events') {
-    scopeKeywords = '(event OR webinar OR conference OR summit OR "register now")';
-  } else if (scope === 'profiles') {
-    scopeKeywords = '(profile OR bio OR "admin" OR "moderator") -inurl:group -inurl:chat';
-  } else {
-    // Default: Communities / Groups
-    scopeKeywords = '(chat OR "join chat" OR "invite link" OR group OR community OR discussion OR forum OR "whatsapp group" OR "telegram group" OR "تجمع" OR "قروب" OR "ملتقى") -filetype:pdf -filetype:docx';
-  }
-
-  // 5. Query Expansion for Medical (Handled in System Instruction mostly, but added keywords here)
-  let queryStr = `"${query}"`;
+  // 3. TARGETED FOOTPRINTS (Simultaneous Search)
+  // If user selects [Telegram, X], we search:
+  // A) Telegram Index (t.me)
+  // B) X Index (x.com)
+  // C) X discussing Telegram (site:x.com "t.me")
   
-  // 6. Mode Specific Logic
-  if (mode === 'username') {
-    return `"${query}" ${platformScope} -site:?*`;
-  }
+  const activeSignatures = platforms.map(p => platformSignatures[p]).filter(Boolean).join(' OR ');
+  const targetSites = platforms.map(p => {
+      // Map platform names to their domains for "site:" operators
+      if(p === 'Telegram') return 'site:t.me';
+      if(p === 'WhatsApp') return 'site:whatsapp.com';
+      if(p === 'Facebook') return 'site:facebook.com';
+      if(p === 'LinkedIn') return 'site:linkedin.com';
+      if(p === 'X') return '(site:twitter.com OR site:x.com)';
+      if(p === 'Reddit') return 'site:reddit.com';
+      if(p === 'Discord') return 'site:discord.com';
+      return '';
+  }).filter(Boolean).join(' OR ');
+
+  // 4. SMART QUERY EXPANSION (Context Aware)
+  let coreQuery = `"${query}"`;
   
-  if (mode === 'phone') {
-    return `"${query}" OR "${query.replace('+', '')}" OR "tel:${query}" ${platformScope}`;
+  // Medical Context Expansion (Arabic/English)
+  if (mode === 'medical-residency' || query.toLowerCase().includes('residency') || query.toLowerCase().includes('board')) {
+      const specialty = medicalContext?.specialty || query;
+      const level = medicalContext?.level || '';
+      
+      // Expand to include common acronyms and Arabic terms
+      const arSpecialty = `("تجمع ${specialty}" OR "اطباء ${specialty}" OR "زمالة" OR "بورد")`;
+      const enSpecialty = `("Saudi Board" OR "Arab Board" OR "SCFHS" OR "R1" OR "R2" OR "Resident" OR "Fellowship")`;
+      
+      coreQuery = `(${specialty} ${level}) (${arSpecialty} OR ${enSpecialty})`;
   }
 
-  if (mode === 'medical-residency') {
-    const specialty = medicalContext?.specialty || '';
-    const level = medicalContext?.level || 'Residency';
-    
-    // SMART CONTEXT INJECTION FOR SAUDI/ARAB BOARD
-    // If the location mentions Saudi, KSA, or user inputs Arabic, we inject Arabic Medical Keywords.
-    const isSaudiContext = location?.country?.toLowerCase().includes('saudi') || location?.country?.toLowerCase().includes('ksa') || query.match(/[\u0600-\u06FF]/);
-    
-    let medicalKeywords = `"${specialty}" "${level}" (group OR community OR "fellowship chat" OR "residents group")`;
-    
-    if (isSaudiContext) {
-        medicalKeywords += ` OR ("تجمع ${specialty}" OR "بورد ${specialty}" OR "زمالة ${specialty}" OR "Saudi Board" OR "SCFHS" OR "R1" OR "R2" OR "R3" OR "R4")`;
-    }
+  // 5. LOCATION LOCK
+  const locStr = [location?.country, location?.city].filter(Boolean).map(s => `"${s}"`).join(' AND ');
 
-    // Ensure we look for the specialty AND the group keywords
-    return `${medicalKeywords} ${locStr} ${platformScope} ${scopeKeywords} ${privateKeywords}`;
-  }
+  // 6. FINAL VECTOR ASSEMBLY
+  // Logic: (Query + Expansion) AND (Location) AND ( (Target Sites) OR (Conversational Mentions of Targets) )
+  
+  const combinedVector = `
+    ${coreQuery} 
+    ${locStr} 
+    (${targetSites} OR (${activeSignatures} ${conversationLayer}))
+  `.replace(/\s+/g, ' ').trim();
 
-  // General Search
-  return `${queryStr} ${locStr} ${platformScope} ${scopeKeywords} ${authKeywords} ${privateKeywords}`;
+  return combinedVector;
 };
 
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const searchVector = buildSearchVector(params);
   
-  const identityContext = params.identities.map(id => `[${id.platform.toUpperCase()} UPLINK: ${id.value}]`).join(' + ');
-  const authLevel = params.identities.length > 0 ? "LEVEL_2_AUTHORIZED (DEEP SCAN)" : "LEVEL_1_PUBLIC";
+  // Create a context of "Authorized Accounts" to simulate deep access
+  const authContext = params.identities.length > 0 
+    ? `ACTIVE SESSIONS: ${params.identities.map(i => i.platform).join(', ')}. (Simulate access to public threads on these platforms).`
+    : "MODE: PUBLIC WEB SCAN";
 
-  console.log(`[${authLevel}] VECTOR:`, searchVector);
+  console.log(`[VECTOR]:`, searchVector);
 
   const systemInstruction = `
-    You are SCOUT OPS v7.5, a specialized Intelligence Engine focusing on Social Media Groups & Communities.
-    You are currently authorized via: ${identityContext || "GUEST_MODE"}.
+    You are SCOUT OPS v7.5, an Elite Open Source Intelligence (OSINT) Engine.
     
-    === MISSION DIRECTIVES ===
-    1. **HUMAN SIMULATION**: Act as a verified user inside these networks. Look for colloquial terms used by community members (e.g., "Any Whatsapp group for R1?", "Invite link please").
-    2. **TARGET**: Find ACTIVE Group Links (Telegram, WhatsApp, Discord, Facebook Groups) and Community Profiles.
-    3. **PRIVATE INTEL**: Specifically hunt for TELEGRAM PRIVATE GROUPS using 't.me/+' or 'joinchat' patterns. These are high-value targets.
-    4. **MEDICAL EXPANSION**: 
-       - If querying for 'Saudi Board' or 'Pediatrics', include terms like "SCFHS", "R1/R2/R3", "Residents", "Fellows".
-       - Support ARABIC search terms automatically (e.g., "تجمع", "قروب", "بورد").
-    5. **SOURCE IDENTIFICATION**: You MUST identify WHO shared the link. Was it an 'Official Account', a 'Community Admin', a 'University Page', or a 'User Message'?
-    6. **GEO-FENCING**: Strictly apply the location filters: ${params.location?.country || 'Global'} ${params.location?.city || ''}.
+    === OPERATIONAL GOAL ===
+    Perform a SIMULTANEOUS MULTI-PLATFORM SCAN to find "Group Invite Links" and "Community Discussions".
+    
+    === SEARCH STRATEGY ===
+    1. **CROSS-PLATFORM DISCOVERY**: You must look for links to one platform (e.g., Telegram) hidden inside discussions on another (e.g., Twitter Threads, Facebook Comments).
+    2. **DEEP CONVERSATIONAL PARSING**: 
+       - EXTRACT SENDER: Identify who posted the link (e.g., "@Ahmed99", "Admin", "Unknown User").
+       - EXTRACT CONTEXT: Capture the message or tweet text surrounding the link.
+    3. **MEDICAL INTELLIGENCE (Priority)**:
+       - Context: "${params.medicalContext?.specialty || params.query}"
+       - Look for terms: "R1", "Residents", "Saudi Board", "SCFHS", "تجمع", "قروب".
+       - Prioritize "Official" or "Semi-Official" study groups.
 
-    === INPUT PARAMETERS ===
-    QUERY: "${params.query}"
-    MODE: ${params.mode}
-    LOCATION: ${JSON.stringify(params.location)}
-
-    === OUTPUT FORMAT (JSON) ===
+    === OUTPUT REQUIREMENTS ===
+    Return a raw JSON object. NO markdown formatting.
+    
+    Format:
     {
-      "analysis": "Briefing on the density of groups found, specific sub-specialties identified, presence of private/invite-only groups, and the primary source of these links.",
+      "analysis": "Brief summary of where links were found.",
       "links": [
         {
-          "title": "Group Name or Page Title",
-          "url": "Direct URL to Group/Profile",
-          "platform": "Platform Name",
-          "type": "Group|Channel|Community|Event",
-          "sharedBy": "Exact name of the Account/Community that shared this link",
-          "description": "Content summary.",
-          "location": "Inferred Location",
+          "title": "Page Title or Tweet Content",
+          "url": "THE EXTRACTED URL (Prioritize the direct Invite Link if found, else the Discussion Link)",
+          "platform": "The platform where the GROUP exists (Telegram, WhatsApp, etc.)",
+          "type": "Group | Channel | Discussion Thread",
+          "sharedBy": "Exact Name/Handle of the Sender (e.g. '@Dr_Ahmed', 'Facebook User')",
+          "description": "Short summary of the group/page.",
+          "context": "The actual message content where the link was shared (e.g., 'Here is the R1 group link you asked for...')",
           "confidence": 80-100,
           "status": "Active",
-          "tags": ["Private", "Verified", "Medical"] // Add 'Private' if it is an invite link
+          "tags": ["Private", "Thread Reply", "Medical"] 
         }
       ]
     }
@@ -150,7 +144,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `[EXECUTE_GROUP_HUNT] Pattern: ${searchVector}`,
+      contents: `[EXECUTE SIMULTANEOUS SCAN] Query: ${searchVector}`,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }], 
@@ -160,99 +154,105 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     const rawData = parseSafeJSON(response.text);
     const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    // 1. Extract Links from Grounding
+    // 1. Process Grounding Results (The "Raw" Hits)
     const verifiedLinks: IntelLink[] = grounding
       .filter((c: any) => c.web && c.web.uri)
       .map((c: any, i: number) => {
         const uri = c.web.uri;
         let platform: PlatformType = 'Telegram'; 
-        
-        if (uri.includes('t.me')) platform = 'Telegram';
+        let discoverySource = 'Web Index';
+
+        // Intelligent Platform Detection
+        if (uri.includes('t.me') || uri.includes('telegram')) platform = 'Telegram';
         else if (uri.includes('whatsapp')) platform = 'WhatsApp';
         else if (uri.includes('discord')) platform = 'Discord';
         else if (uri.includes('linkedin')) platform = 'LinkedIn';
         else if (uri.includes('facebook')) platform = 'Facebook';
-        else if (uri.includes('twitter') || uri.includes('x.com')) platform = 'X';
+        else if (uri.includes('twitter') || uri.includes('x.com')) { platform = 'X'; discoverySource = 'Twitter Thread'; }
         else if (uri.includes('instagram')) platform = 'Instagram';
-        else if (uri.includes('reddit')) platform = 'Reddit';
-        else if (uri.includes('tiktok')) platform = 'TikTok';
+        else if (uri.includes('reddit')) { platform = 'Reddit'; discoverySource = 'Reddit Discussion'; }
 
+        // Determine if this is a "Container" (Thread) or "Target" (Group)
         let type: IntelLink['type'] = 'Group';
-        // Infer type strictly for Groups/Communities
-        if (uri.includes('channel') || (platform === 'Telegram' && !uri.includes('joinchat') && !uri.includes('+'))) type = 'Channel';
-        else if (platform === 'LinkedIn' && uri.includes('/groups/')) type = 'Group';
-        else if (platform === 'Facebook' && uri.includes('/groups/')) type = 'Group';
-        else type = 'Group';
+        if (platform === 'X' || platform === 'Reddit') type = 'Community'; // Typically a discussion *about* a group
+        if (uri.includes('joinchat') || uri.includes('/+')) type = 'Group'; // Definitely a group
 
-        if (params.scope === 'channels') type = 'Channel';
-        if (params.scope === 'events') type = 'Event';
-
-        // Detect Private Links
-        const tags = ['Verified', 'Live'];
-        if (platform === 'Telegram' && (uri.includes('/+') || uri.includes('joinchat'))) {
-            tags.push('Private');
-        }
+        // Auto-tagging based on URL structure
+        const tags = ['Verified'];
+        if (uri.includes('/+') || uri.includes('joinchat')) tags.push('Private');
+        if (uri.includes('status') && platform === 'X') tags.push('Thread');
 
         return {
           id: `g-${i}`,
-          title: c.web.title || "Intercepted Signal",
+          title: c.web.title || "Detected Signal",
           url: uri,
-          description: "Verified community signal.",
+          description: "Signal detected via multi-platform scan.",
+          context: "Direct web result",
           platform,
           type,
           status: 'Active',
-          confidence: 100,
-          source: 'Live Grounding',
-          sharedBy: "Direct Search Result", // Grounding often lacks context of "who shared", AI analysis fills this better
+          confidence: 90,
+          source: discoverySource, // Where we found it
+          sharedBy: "Public Index",
           tags: tags,
           location: params.location?.country || 'Global'
         };
       });
 
-    // 2. Merge with AI Analysis (which has better context on 'sharedBy')
+    // 2. Process AI Analysis (The "Deep" Hits - parsing context)
     const finalLinks: IntelLink[] = [...verifiedLinks];
     const seenUrls = new Set(verifiedLinks.map(l => l.url.toLowerCase()));
 
     if (rawData && rawData.links) {
       rawData.links.forEach((aiLink: any) => {
-        // We prioritize AI links here because they contain the 'sharedBy' intelligence requested by the user
-        // If the URL matches a grounding link, update the grounding link with AI details
+        // AI is better at identifying "Who shared it" and "Is it a reply?"
         const existingLink = finalLinks.find(l => l.url.toLowerCase() === aiLink.url?.toLowerCase());
         
         if (existingLink) {
-          existingLink.sharedBy = aiLink.sharedBy || "Community Network";
+          existingLink.sharedBy = aiLink.sharedBy;
           existingLink.description = aiLink.description;
+          existingLink.context = aiLink.context;
+          existingLink.type = aiLink.type; // Trust AI classification of "Thread" vs "Group"
           if (aiLink.tags) existingLink.tags = [...new Set([...existingLink.tags, ...aiLink.tags])];
         } else if (aiLink.url && !seenUrls.has(aiLink.url.toLowerCase())) {
-          // Check for private tag in AI link URL as fallback
-          const aiTags = aiLink.tags || ['AI_Inferred'];
-          if (aiLink.platform === 'Telegram' && (aiLink.url.includes('/+') || aiLink.url.includes('joinchat'))) {
-              if (!aiTags.includes('Private')) aiTags.push('Private');
-          }
-
           finalLinks.push({
             id: `ai-${Math.random()}`,
-            title: aiLink.title,
+            title: aiLink.title || "Hidden Connection",
             description: aiLink.description,
+            context: aiLink.context,
             url: aiLink.url,
             platform: aiLink.platform as PlatformType,
             type: aiLink.type || 'Group',
             status: 'Active',
-            confidence: aiLink.confidence || 80, 
-            source: 'Deep Analysis',
-            sharedBy: aiLink.sharedBy || "Aggregated Source",
-            tags: aiTags,
+            confidence: aiLink.confidence || 85, 
+            source: 'Deep Context Analysis', // Found by reading the page content/snippet
+            sharedBy: aiLink.sharedBy || "Anonymous User",
+            tags: aiLink.tags || [],
             location: aiLink.location || params.location?.country || 'Global'
           });
         }
       });
     }
 
-    // 3. Filtering
+    // 3. Post-Processing & Filtering
     const userMinConf = params.filters?.minConfidence || 0;
-    let filteredLinks = finalLinks.filter(l => l.confidence >= userMinConf);
     
-    filteredLinks = filteredLinks.filter(l => params.platforms.includes(l.platform));
+    // Filter logic: Ensure we show results that match requested platforms OR contain links to requested platforms
+    const allowedPlatforms = new Set(params.platforms);
+    let filteredLinks = finalLinks.filter(l => {
+        if (l.confidence < userMinConf) return false;
+        
+        // If the link IS one of the requested platforms (e.g. t.me link) -> Keep it
+        if (allowedPlatforms.has(l.platform)) return true;
+
+        // If the link is a "Container" (e.g. Twitter Thread) that MIGHT contain the target -> Keep it
+        if (l.platform === 'X' || l.platform === 'Reddit' || l.platform === 'Facebook') return true;
+
+        return false;
+    });
+
+    // Sort by confidence
+    filteredLinks.sort((a, b) => b.confidence - a.confidence);
 
     const platformDist: Record<string, number> = {};
     filteredLinks.forEach(l => {
@@ -260,7 +260,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     });
 
     return {
-      analysis: rawData?.analysis || "Group scan complete. Targets identified.",
+      analysis: rawData?.analysis || "Multi-platform scan complete. Cross-referenced conversational signals processed.",
       links: filteredLinks,
       stats: {
         total: filteredLinks.length,

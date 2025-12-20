@@ -33,6 +33,7 @@ export interface IntelLink {
   id: string;
   title: string;
   description: string;
+  context?: string; // The specific message/tweet content
   url: string;
   platform: PlatformType;
   type: 'Group' | 'Channel' | 'Profile' | 'Bot' | 'Event' | 'Community';
