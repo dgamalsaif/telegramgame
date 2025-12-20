@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SearchResult, IntelLink, SearchParams, PlatformType } from "../types";
 
 /**
- * Robust JSON extraction from model response
+ * استخراج JSON بشكل آمن من استجابة الموديل
  */
 const parseSafeJSON = (text: string): any => {
   try {
@@ -22,11 +22,10 @@ const parseSafeJSON = (text: string): any => {
 };
 
 /**
- * وظيفة لاختبار الاتصال السريع بالمحرك
+ * اختبار الاتصال بالمحرك - يتم إنشاء المحرك لحظة الاستدعاء
  */
 export const testConnection = async (): Promise<boolean> => {
   try {
-    // استخدام gemini-3-flash-preview كونه الأكثر توفراً للمشاريع المجانية
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -39,7 +38,11 @@ export const testConnection = async (): Promise<boolean> => {
   }
 };
 
+/**
+ * البحث الاستخباراتي العالمي
+ */
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
+  // إنشاء المحرك لحظة الطلب لضمان استخدام المفتاح الصحيح من البيئة
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const queryBase = params.query.trim();
@@ -54,6 +57,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     'Reddit': '(site:reddit.com/r)',
     'Instagram': '(site:instagram.com)',
     'X': '(site:x.com OR site:twitter.com)',
+    'TikTok': '(site:tiktok.com intext:"chat" OR intext:"join")',
   };
 
   const searchScope = params.platforms
@@ -61,19 +65,12 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     .filter(Boolean)
     .join(' OR ');
 
-  let specializedTerms = '';
-  if (params.searchType === 'medical-recon') {
-    specializedTerms = '("Board" OR "Residency" OR "PGY" OR "Fellowship" OR "Medical Group" OR "بورد")';
-  } else if (params.searchType === 'mention-tracker') {
-    specializedTerms = '(intext:"invite link" OR intext:"join this group")';
-  }
+  const searchVector = `(${searchScope}) "${queryBase}" ${geoContext}`;
 
-  const searchVector = `(${searchScope}) ${specializedTerms} "${queryBase}" ${geoContext}`;
-
-  const systemInstruction = `You are SCOUT OPS Intelligence v7.5. Your mission is to locate, categorize, and verify community invite links. Output strictly valid JSON with the following structure: { "analysis": "summary string", "links": [{"title": "...", "description": "...", "url": "...", "platform": "...", "confidence": 0-100, "source": {"name": "...", "uri": "...", "type": "...", "context": "..."}}], "stats": {"totalFound": number, "medicalMatches": number} }.`;
+  const systemInstruction = `You are SCOUT OPS Intelligence v7.5. Locate, categorize, and verify community invite links. 
+  Output strictly valid JSON: { "analysis": "string", "links": [{"title": "string", "description": "string", "url": "string", "platform": "string", "confidence": number, "source": {"name": "string", "uri": "string", "type": "string"}}] }.`;
 
   try {
-    // استخدام gemini-3-flash-preview لتجنب مشاكل الـ Billing في المشاريع غير المدفوعة
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `[INITIATE_OSINT_RECON] TARGET: "${queryBase}" | VECTOR: ${searchVector}`,
@@ -86,6 +83,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     const data = parseSafeJSON(response.text);
     const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
+    // استخراج الروابط من أداة البحث (Google Search Grounding)
     const verifiedLinks: IntelLink[] = grounding
       .filter((c: any) => c.web)
       .map((c: any, i: number) => {
@@ -99,7 +97,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
         return {
           id: `v-${i}-${Date.now()}`,
           title: c.web.title || "Discovered Signal",
-          description: "Verified node found via Google Search grounding.",
+          description: "Verified node found via real-time web grounding.",
           url,
           isPrivate: url.includes('join') || url.includes('invite'),
           isActive: true,
@@ -107,10 +105,9 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
           confidence: 99,
           location: { country: params.location },
           source: {
-            name: "Google Search Grounding",
+            name: "Google Intelligence Search",
             uri: url,
-            type: 'Direct',
-            context: "Real-time verified web signal."
+            type: 'Direct'
           },
           timestamp: new Date().toISOString()
         };
@@ -131,7 +128,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     });
 
     return {
-      analysis: data?.analysis || "Operation complete.",
+      analysis: data?.analysis || "Reconnaissance complete.",
       links: allLinks,
       messages: [],
       sources: verifiedLinks.map(l => ({ title: l.title, uri: l.url })),
@@ -139,7 +136,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
         totalFound: allLinks.length,
         privateCount: allLinks.filter(l => l.isPrivate).length,
         activeCount: allLinks.length,
-        medicalMatches: data?.stats?.medicalMatches || allLinks.length
+        medicalMatches: allLinks.length
       }
     };
   } catch (error) {
