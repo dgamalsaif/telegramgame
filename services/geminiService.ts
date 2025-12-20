@@ -54,15 +54,24 @@ const buildSearchVector = (params: SearchParams): string => {
   // 4. SMART QUERY EXPANSION
   let coreQuery = `"${query}"`;
   
-  if (mode === 'medical-residency' || query.toLowerCase().includes('residency') || query.toLowerCase().includes('board')) {
+  // Detect medical context automatically to support "any word"
+  const isMedicalContext = mode === 'medical-residency' || 
+                           query.toLowerCase().includes('residency') || 
+                           query.toLowerCase().includes('board') ||
+                           query.toLowerCase().includes('medical') ||
+                           query.toLowerCase().includes('medicine') ||
+                           query.toLowerCase().includes('doctor') ||
+                           query.toLowerCase().includes('specialty');
+
+  if (isMedicalContext) {
       const specialty = medicalContext?.specialty || query;
       const level = medicalContext?.level || '';
       
-      // Advanced Aliases for High Precision
+      // Dynamic Alias Generation (Generic & Specific)
       let enhancedSpecialty = `"${specialty}"`;
       const sLower = specialty.toLowerCase();
 
-      // Semantic Mapping
+      // We keep optimized mappings for common requests, but fallback gracefully for ANY word
       if(sLower.includes('family') || sLower.includes('fam')) {
           enhancedSpecialty = '("Family Medicine" OR "FM" OR "Fam Med" OR "طب الأسرة" OR "طب أسرة")';
       } else if (sLower.includes('pedia')) {
@@ -73,9 +82,9 @@ const buildSearchVector = (params: SearchParams): string => {
            enhancedSpecialty = '("General Surgery" OR "GS" OR "جراحة عامة")';
       }
 
-      // Context Keywords (Residency, Board, Fellowship, etc.)
-      const enContext = `("Saudi Board" OR "Arab Board" OR "SCFHS" OR "Residency" OR "Fellowship" OR "R1" OR "R2")`;
-      const arContext = `("بورد" OR "زمالة" OR "تجمع" OR "أطباء" OR "قروب")`;
+      // Generic context layer that works for ANY specialty word typed
+      const enContext = `("Board" OR "Residency" OR "Fellowship" OR "Community" OR "Study Group" OR "Residents" OR "Exam Prep")`;
+      const arContext = `("بورد" OR "زمالة" OR "تجمع" OR "أطباء" OR "قروب" OR "دراسة")`;
       
       coreQuery = `(${enhancedSpecialty} ${level}) (${enContext} OR ${arContext})`;
   }
@@ -116,9 +125,11 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     The 'analysis' field must be a structured TEXT REPORT (use \\n for new lines) with the following headers:
     [EXECUTIVE SUMMARY], [KEY INTEL], [STRATEGIC ASSESSMENT].
     
+    Ensure the report analyzes the specific topic provided in the query ("${params.query}"), regardless of what it is.
+    
     JSON Structure:
     {
-      "analysis": "[EXECUTIVE SUMMARY]\\nBrief overview of findings.\\n\\n[KEY INTEL]\\nSpecific high-value targets found.\\n\\n[STRATEGIC ASSESSMENT]\\nAnalysis of the activity level and authenticity.",
+      "analysis": "[EXECUTIVE SUMMARY]\\nBrief overview of findings for the requested topic.\\n\\n[KEY INTEL]\\nSpecific high-value targets found.\\n\\n[STRATEGIC ASSESSMENT]\\nAnalysis of the activity level and authenticity.",
       "links": [
         {
           "title": "Page Title",
