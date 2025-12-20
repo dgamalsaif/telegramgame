@@ -21,7 +21,7 @@ const parseSafeJSON = (text: string): any => {
 
 /**
  * SCOUT OPS v7.5 ULTRA PRO | CORE INTELLIGENCE SERVICE
- * Specializing in high-accuracy link discovery and contextual OSINT.
+ * Utilizing Gemini 3 Pro with Google Search Grounding for link discovery.
  */
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
   const apiKey = process.env.API_KEY;
@@ -30,55 +30,48 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   const ai = new GoogleGenAI({ apiKey });
   
   const queryBase = params.query.trim();
-  const geoContext = [params.location, params.town, params.hospital, params.specialty]
-    .filter(Boolean)
-    .join(' ');
+  const geoContext = [params.location, params.specialty].filter(Boolean).join(' ');
   
-  // Advanced Platform Dorks for URL Discovery
+  // High-precision Dorks for Invite Discovery
   const platformVectors: Record<string, string> = {
-    'Telegram': '(site:t.me OR site:telegram.me OR site:telegram.dog OR "t.me/+")',
-    'WhatsApp': '(site:chat.whatsapp.com OR "wa.link" OR "chat.whatsapp")',
-    'Discord': '(site:discord.gg OR site:discord.com/invite)',
+    'Telegram': '(site:t.me OR site:telegram.me OR "t.me/+")',
+    'WhatsApp': '(site:chat.whatsapp.com OR "chat.whatsapp")',
+    'Discord': '(site:discord.gg OR "discord.com/invite")',
     'Facebook': '(site:facebook.com/groups)',
-    'LinkedIn': '(site:linkedin.com/groups OR site:linkedin.com/posts)',
+    'LinkedIn': '(site:linkedin.com/groups)',
     'Reddit': '(site:reddit.com/r)',
     'Instagram': '(site:instagram.com)',
     'X': '(site:x.com OR site:twitter.com)',
-    'TikTok': '(site:tiktok.com)',
   };
 
-  const targetPlatforms = params.platforms.length > 0 
-    ? params.platforms 
-    : ['Telegram', 'WhatsApp', 'LinkedIn', 'Reddit', 'Facebook'];
-
-  const searchScope = targetPlatforms
+  const searchScope = params.platforms
     .map(p => platformVectors[p])
     .filter(Boolean)
     .join(' OR ');
 
   let specializedTerms = '';
   if (params.searchType === 'medical-recon') {
-    specializedTerms = '("Board" OR "Residency" OR "PGY" OR "Fellowship" OR "Medical Group" OR "زمالة" OR "بورد")';
+    specializedTerms = '("Board" OR "Residency" OR "PGY" OR "Fellowship" OR "Medical Group" OR "بورد")';
   } else if (params.searchType === 'mention-tracker') {
-    specializedTerms = '(intext:"discussed in" OR intext:"join this" OR intext:"link")';
+    specializedTerms = '(intext:"invite link" OR intext:"join this group")';
   }
 
   const searchVector = `(${searchScope}) ${specializedTerms} "${queryBase}" ${geoContext}`;
 
-  const systemInstruction = `You are SCOUT OPS v7.5 Ultra Pro. Your primary directive is to locate and verify invite links and community nodes.
+  const systemInstruction = `You are SCOUT OPS Intelligence v7.5. Your mission is to locate, categorize, and verify community invite links.
 
-CRITICAL PROTOCOLS:
-1. **Source Context**: Always identify WHERE the link was found (e.g., "Mentioned in a Dr. X post on LinkedIn").
-2. **Link Verification**: Categorize links as 'Direct' (actual invite) or 'Mention' (a page talking about it).
-3. **Accuracy**: If a link is for a private group or requires approval, mark isPrivate: true.
-4. **Localization**: Identify the country/city/hospital context for every result.
+PROTOCOLS:
+1. Identify EXACT URLs for Telegram channels, WhatsApp groups, Discord invites, etc.
+2. Provide a descriptive analysis of the community found.
+3. Categorize results as "Direct" (if it's an invite link) or "Mention" (if it's a discussion about a link).
+4. Assign a confidence score (0-100) based on link validity.
 
 Output strictly valid JSON.`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: `[INITIATE_SCAN] TARGET: "${queryBase}" | VECTOR: ${searchVector}`,
+      contents: `[INITIATE_OSINT_RECON] TARGET: "${queryBase}" | VECTOR: ${searchVector}`,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }],
@@ -97,7 +90,6 @@ Output strictly valid JSON.`;
                   url: { type: Type.STRING },
                   platform: { type: Type.STRING },
                   confidence: { type: Type.NUMBER },
-                  isPrivate: { type: Type.BOOLEAN },
                   source: {
                     type: Type.OBJECT,
                     properties: { 
@@ -125,48 +117,48 @@ Output strictly valid JSON.`;
     const data = parseSafeJSON(response.text);
     const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    // Verified Link Layer from Grounding
+    // Integrate Grounding Data
     const verifiedLinks: IntelLink[] = grounding
       .filter((c: any) => c.web)
       .map((c: any, i: number) => {
         const url = c.web.uri || '';
-        const isDirect = url.includes('t.me') || url.includes('chat.whatsapp') || url.includes('discord.gg');
-        
         let platform: PlatformType = 'Telegram';
         if (url.includes('whatsapp')) platform = 'WhatsApp';
-        else if (url.includes('reddit')) platform = 'Reddit';
+        else if (url.includes('discord')) platform = 'Discord';
         else if (url.includes('linkedin')) platform = 'LinkedIn';
         else if (url.includes('facebook')) platform = 'Facebook';
-        else if (url.includes('discord')) platform = 'Discord';
+        else if (url.includes('reddit')) platform = 'Reddit';
+        else if (url.includes('twitter') || url.includes('x.com')) platform = 'X';
 
         return {
-          id: `node-${i}-${Date.now()}`,
-          title: c.web.title || "Verified Signal",
-          description: isDirect ? "Direct community access node." : `Contextual mention found on ${platform}.`,
+          id: `v-${i}-${Date.now()}`,
+          title: c.web.title || "Discovered Signal",
+          description: "Verified node found via Google Search grounding.",
           url,
           isPrivate: url.includes('join') || url.includes('invite'),
           isActive: true,
           platform,
-          confidence: 95,
-          location: { country: params.location, town: params.town },
+          confidence: 99,
+          location: { country: params.location },
           source: {
-            name: c.web.title || "Web Signal",
+            name: "Google Search Grounding",
             uri: url,
-            type: isDirect ? 'Direct' : 'Mention',
-            context: `Grounding verified link found on ${platform}`
+            type: 'Direct',
+            context: "Real-time verified web signal."
           },
           timestamp: new Date().toISOString()
         };
       });
 
-    // Deduplicate and Merge
     const aiLinks = (data?.links || []).map((l: any, i: number) => ({
       ...l,
       id: `ai-${i}-${Date.now()}`,
+      isActive: true,
       timestamp: new Date().toISOString(),
-      location: { country: params.location, town: params.town }
+      location: { country: params.location }
     }));
 
+    // Merge & Deduplicate
     const allLinks = [...verifiedLinks];
     const seenUrls = new Set(verifiedLinks.map(v => v.url.toLowerCase()));
 
@@ -177,7 +169,7 @@ Output strictly valid JSON.`;
     });
 
     return {
-      analysis: data?.analysis || "Reconnaissance scan complete. Signals synchronized.",
+      analysis: data?.analysis || "Operation complete. System synchronized.",
       links: allLinks,
       messages: [],
       sources: verifiedLinks.map(l => ({ title: l.title, uri: l.url })),
@@ -190,7 +182,7 @@ Output strictly valid JSON.`;
     };
 
   } catch (error) {
-    console.error("Engine failure:", error);
+    console.error("Engine Fault:", error);
     throw error;
   }
 };

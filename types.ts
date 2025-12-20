@@ -20,31 +20,20 @@ export interface IntelLink {
   confidence: number;
   location: {
     country: string;
-    town?: string;
-    hospital?: string;
-    specialty?: string;
   };
   source: {
     name: string;
     uri: string;
     type: 'Search' | 'Mention' | 'Directory' | 'Direct';
-    context?: string; // Where exactly this link was mentioned
+    context?: string;
   };
   timestamp: string;
-}
-
-export interface IntelMessage {
-  id: string;
-  content: string;
-  author: string;
-  platform: PlatformType;
-  relevance: number;
 }
 
 export interface SearchResult {
   analysis: string;
   links: IntelLink[];
-  messages: IntelMessage[];
+  messages: any[];
   sources: Array<{ title: string; uri: string }>;
   stats: {
     totalFound: number;
@@ -54,28 +43,17 @@ export interface SearchResult {
   };
 }
 
-export type SearchType = 'topic' | 'user-id' | 'signal-phone' | 'medical-recon' | 'deep-scan' | 'mention-tracker' | 'specialty-hunt';
+export type SearchType = 'topic' | 'medical-recon' | 'deep-scan' | 'mention-tracker';
 
 export interface SearchParams {
   query: string;
   location: string;
-  town?: string;
-  hospital?: string;
   specialty?: string;
-  platforms: PlatformType[]; // Updated to strictly follow selected platforms
+  platforms: PlatformType[];
   searchType: SearchType;
   filters: {
     activeOnly: boolean;
     privateOnly: boolean;
     minConfidence: number;
   };
-}
-
-export interface SearchHistoryItem {
-  query: string;
-  location: string;
-  town?: string;
-  hospital?: string;
-  timestamp: string;
-  type: SearchType;
 }
