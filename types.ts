@@ -1,83 +1,47 @@
 
+export type PlatformType = 'Telegram' | 'WhatsApp' | 'Discord' | 'X' | 'Facebook' | 'Instagram' | 'LinkedIn' | 'TikTok' | 'Signal' | 'Reddit';
+
 export interface Platform {
   id: string;
-  name: string;
+  name: PlatformType;
   icon: string;
   connected: boolean;
   color: string;
 }
 
-export type PlatformType = 
-  | 'Telegram' 
-  | 'WhatsApp' 
-  | 'Discord' 
-  | 'X' 
-  | 'Facebook' 
-  | 'Instagram' 
-  | 'LinkedIn' 
-  | 'Reddit' 
-  | 'TikTok' 
-  | 'Signal';
-
-export type SearchMode = 'discovery' | 'username' | 'phone' | 'medical-residency';
-export type SearchScope = 'communities' | 'channels' | 'events' | 'profiles';
-
-export interface ConnectedIdentity {
-  platform: PlatformType;
-  type: 'phone' | 'email' | 'handle';
-  value: string; // The username or handle
-  email?: string; // The email used for verification
-  password?: string; // Stored for auto-login simulation
-  authProvider?: 'google' | 'facebook' | 'apple' | 'manual'; // How they logged in
-  connectionMethod?: 'oauth_handshake' | 'api_key' | 'simulated'; // The method of connection
-  apiKey?: string; // Real API key if provided
-  verifiedAt: string;
-}
-
-export interface IntelLink {
+export interface IntelligenceSignal {
   id: string;
   title: string;
-  description: string;
-  context?: string; // The specific message/tweet content
   url: string;
   platform: PlatformType;
-  type: 'Group' | 'Channel' | 'Profile' | 'Bot' | 'Event' | 'Community';
-  status: 'Active' | 'Unknown' | 'Revoked';
-  members?: string;
-  location?: string;
-  confidence: number;
-  source: string;
-  sharedBy?: string; // Who shared/sent this link
-  tags: string[];
+  type: 'Private Group' | 'Public Group' | 'Channel' | 'Server' | 'Community' | 'Leaked Thread';
+  description: string;
+  context?: string; // Surround text or snippet
+  sharedBy?: string; // Originator or indexing site
+  originSource?: string; // Specific archive or document name
+  isPrivate: boolean;
+  securityLevel: 'Low' | 'Medium' | 'High' | 'Classified';
+  confidenceScore: number;
+  status: 'Active' | 'Unverified' | 'Expired';
+  timestamp: string;
+  location: string;
 }
 
 export interface SearchResult {
   analysis: string;
-  links: IntelLink[];
-  stats: {
-    total: number;
-    platformDistribution: Record<string, number>;
-    topLocations: string[];
+  signals: IntelligenceSignal[];
+  groundingSources: Array<{ title: string; uri: string }>;
+  summary: {
+    totalDetected: number;
+    privateSignals: number;
+    signalStrength: number;
   };
 }
 
 export interface SearchParams {
   query: string;
-  mode: SearchMode;
-  scope: SearchScope; 
   platforms: PlatformType[];
-  identities: ConnectedIdentity[];
-  location?: {
-    country?: string;
-    city?: string;
-    institution?: string; 
-  };
-  medicalContext?: {
-    specialty?: string;
-    level?: string;
-  };
-  filters?: {
-    minConfidence: number;
-    onlyActive: boolean;
-  };
+  searchType: 'discovery' | 'deep-scan' | 'leaks' | 'identity-trace';
+  location: string;
+  identities: string[];
 }

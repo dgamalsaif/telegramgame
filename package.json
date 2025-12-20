@@ -1,8 +1,7 @@
-
 {
-  "name": "scout-ops-v7-ultimate",
+  "name": "scout-ops-v3",
   "private": true,
-  "version": "7.5.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

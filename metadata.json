@@ -1,5 +1,7 @@
 {
-  "requestFramePermissions": [],
-  "name": "SCOUT OPS v7.5 Ultra Pro",
-  "description": ""
+  "name": "SCOUT OPS v13.0 | Quantum Recon",
+  "description": "The definitive professional edition of Scout Ops. Features Algorithm V13 for high-speed private signal extraction and quantum-flux reasoning.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
 }

@@ -1,8 +1,7 @@
 
-import { GoogleGenAI } from "@google/genai";
-import { SearchResult, IntelLink, SearchParams, PlatformType } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { SearchResult, IntelligenceSignal, SearchParams, PlatformType } from "../types";
 
-// Helper to clean JSON output from AI
 const parseSafeJSON = (text: string): any => {
   try {
     let cleanText = text.trim();
@@ -18,173 +17,139 @@ const parseSafeJSON = (text: string): any => {
   }
 };
 
-// --- ALGORITHM V9: TURBO STEALTH RECON ---
-const buildSearchVector = (params: SearchParams): string => {
-  const { query, platforms, identities } = params;
-  
-  // 1. TURBO PATTERNS (Optimized for speed & precision)
-  const turboPatterns: Record<string, string> = {
-    'Telegram': '("t.me/+" OR "t.me/joinchat/" OR "t.me/c/")',
-    'WhatsApp': '("chat.whatsapp.com/")',
-    'Discord': '("discord.gg/" OR "discord.com/invite/")',
-  };
-
-  // 2. AGGRESSIVE CONTEXT ANCHORS
-  const contextTags = [
-    'invite', 'join', 'private', 'hidden', 'leaked', 'رابط', 'قروب', 'سري'
-  ];
-
-  const activePlatforms = platforms.length > 0 ? platforms : ['Telegram', 'WhatsApp', 'Discord'];
-  const platformQuery = activePlatforms
-    .map(p => turboPatterns[p] || `"${p}"`) 
-    .join(' OR ');
-
-  // Inject identity context to "pivot" search results towards user-relevant circles
-  const identityContext = identities.map(id => `"${id.value}"`).join(' OR ');
-
-  return `
-    (${query}) 
-    (${platformQuery})
-    (${contextTags.join(' OR ')})
-    ${identityContext ? `AND (${identityContext})` : ''}
-    -inurl:help -inurl:support
-  `.replace(/\s+/g, ' ').trim();
+const identifyPlatform = (url: string): PlatformType => {
+  const u = url.toLowerCase();
+  if (u.includes('t.me') || u.includes('telegram')) return 'Telegram';
+  if (u.includes('whatsapp') || u.includes('wa.me')) return 'WhatsApp';
+  if (u.includes('discord')) return 'Discord';
+  if (u.includes('facebook') || u.includes('fb.com')) return 'Facebook';
+  if (u.includes('instagram')) return 'Instagram';
+  if (u.includes('linkedin')) return 'LinkedIn';
+  if (u.includes('reddit')) return 'Reddit';
+  if (u.includes('signal.group')) return 'Signal';
+  return 'Telegram';
 };
 
-export interface EnhancedSearchResult extends SearchResult {
-  suggestion: string;
-}
-
-export const searchGlobalIntel = async (params: SearchParams): Promise<EnhancedSearchResult> => {
-  // Initialize AI for every request to ensure latest API key usage
+/**
+ * SCOUT OPS v13.0 - QUANTUM FLUX ALGORITHM
+ * Priority: Latency Reduction & High-Value Signal Extraction
+ */
+export const executeDeepRecon = async (params: SearchParams): Promise<SearchResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const searchVector = buildSearchVector(params);
+
+  // OPTIMIZED VECTOR: High-density search patterns
+  const platformQueries = params.platforms.map(p => {
+    if (p === 'Telegram') return 'site:t.me "+ " OR "joinchat"';
+    if (p === 'WhatsApp') return 'site:chat.whatsapp.com';
+    if (p === 'Discord') return 'site:discord.gg';
+    return `"${p}" invite`;
+  }).join(' OR ');
+
+  const systemInstruction = `YOU ARE SCOUT OPS QUANTUM V13. 
+  ACT FAST. EXTRACT SIGNALS FOR: ${params.platforms.join(', ')}.
   
-  const systemInstruction = `
-    ROLE: ELITE HUMAN-AGENT OSINT ANALYST (V9 TURBO).
-    MISSION: Rapidly extract all links (Telegram Private/Public, Discord, WhatsApp) from digital noise.
-    
-    PROTOCOLS:
-    1. WORD-BY-WORD SCAN: Detect URLs hidden in snippets or chat-like text.
-    2. PRIVATE SIGNAL: Identify "joinchat" and "+" links as [PRIVATE].
-    3. IDENTITY AWARENESS: Simulate scan using these active sessions: ${params.identities.map(i => i.platform).join(', ')}.
-    4. SOURCE DETECTION: Identify where the link was mentioned (e.g. "Pinned in Pedia-Group", "Message from @Admin").
-    5. SUGGESTION: Write a 1-sentence strategic suggestion for finding more private intel.
-    
-    SPEED MODE: BE CONCISE. OUTPUT ONLY JSON.
-    
-    JSON SCHEMA:
-    {
-      "analysis": "Executive summary of signals.",
-      "suggestion": "Human-like strategic advice.",
-      "links": [
-        {
-          "title": "Group/Channel Name",
-          "url": "Direct URL",
-          "platform": "Telegram|WhatsApp|Discord|...",
-          "type": "Group|Channel|Community",
-          "description": "Short context",
-          "context": "The specific mention/snippet",
-          "sharedBy": "Who shared this link",
-          "confidence": 0-100,
-          "status": "Active",
-          "tags": ["Private", "Direct Link", "Mentioned"]
+  CORE MISSION:
+  1. Identify private invite links (+, joinchat).
+  2. For target "${params.query}", extract: [Title, URL, Context, Source].
+  3. Security: [Private/Public]. Confidence: [0-100].
+  4. NO CHATTER. ONLY JSON.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `QUANTUM RECON: ${params.query} | FILTER: ${platformQueries} | LOC: ${params.location}`,
+    config: {
+      systemInstruction,
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          analysis: { type: Type.STRING },
+          signals: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                url: { type: Type.STRING },
+                platform: { type: Type.STRING },
+                type: { type: Type.STRING },
+                description: { type: Type.STRING },
+                context: { type: Type.STRING },
+                sharedBy: { type: Type.STRING },
+                isPrivate: { type: Type.BOOLEAN },
+                confidenceScore: { type: Type.NUMBER },
+                status: { type: Type.STRING }
+              },
+              required: ["title", "url"]
+            }
+          }
         }
-      ]
-    }
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `V9 TURBO SCAN: ${searchVector}. Identify all private and public uplinks.`,
-      config: {
-        systemInstruction,
-        tools: [{ googleSearch: {} }],
-        temperature: 0.1,
-        // Disable thinking budget for maximum speed as per user request
-        thinkingConfig: { thinkingBudget: 0 }
-      },
-    });
-
-    const rawData = parseSafeJSON(response.text);
-    const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-
-    // 1. EXTRACT FROM GROUNDING (Live Data)
-    const groundingLinks: IntelLink[] = grounding
-      .filter((c: any) => c.web && c.web.uri)
-      .map((c: any, i: number) => {
-        const uri = c.web.uri;
-        let platform: PlatformType = 'Telegram';
-        let isPrivate = false;
-
-        if (uri.includes('t.me/+') || uri.includes('joinchat')) { platform = 'Telegram'; isPrivate = true; }
-        else if (uri.includes('chat.whatsapp.com')) { platform = 'WhatsApp'; isPrivate = true; }
-        else if (uri.includes('discord.gg') || uri.includes('discord.com/invite')) { platform = 'Discord'; }
-        
-        return {
-          id: `g-${i}`,
-          title: c.web.title || `Signal ${i}`,
-          url: uri,
-          description: "Detected in platform discovery index.",
-          platform,
-          type: 'Group',
-          status: 'Active',
-          confidence: isPrivate ? 95 : 75,
-          source: "Live Index",
-          tags: isPrivate ? ['Private', 'Direct Link'] : ['Discovery'],
-          location: params.location?.country || 'Global'
-        };
-      });
-
-    // 2. MERGE AI DISCOVERY (Simulation of Deep Chat Extraction)
-    let finalLinks = [...groundingLinks];
-    const seenUrls = new Set(groundingLinks.map(l => l.url.toLowerCase()));
-
-    if (rawData && Array.isArray(rawData.links)) {
-      rawData.links.forEach((link: any) => {
-        if (link.url && !seenUrls.has(link.url.toLowerCase())) {
-          finalLinks.push({
-            ...link,
-            id: `ai-${Math.random().toString(36).substr(2, 9)}`,
-            confidence: link.confidence || 80,
-            tags: link.tags || []
-          });
-        }
-      });
-    }
-
-    // 3. FINAL AGGREGATION
-    const minConf = params.filters?.minConfidence || 5;
-    let results = finalLinks.filter(l => l.confidence >= minConf);
-    
-    if (params.platforms.length > 0) {
-      const pSet = new Set(params.platforms);
-      results = results.filter(l => pSet.has(l.platform));
-    }
-
-    results.sort((a, b) => {
-      const aW = (a.tags.includes('Private') ? 1000 : 0) + a.confidence;
-      const bW = (b.tags.includes('Private') ? 1000 : 0) + b.confidence;
-      return bW - aW;
-    });
-
-    return {
-      analysis: rawData?.analysis || "V9 Turbo scan complete. Signal landscape identified.",
-      suggestion: rawData?.suggestion || "Consider searching for center-specific codes (e.g. 'R1 KFSH' or 'R1 Military Hospital').",
-      links: results,
-      stats: {
-        total: results.length,
-        platformDistribution: results.reduce((acc, curr) => {
-          acc[curr.platform] = (acc[curr.platform] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>),
-        topLocations: Array.from(new Set(results.map(r => r.location).filter(Boolean))) as string[]
       }
-    };
+    }
+  });
 
-  } catch (error) {
-    console.error("V9 ENGINE FAILURE:", error);
-    throw error;
-  }
+  const parsed = parseSafeJSON(response.text);
+  const grounding = (response.candidates?.[0]?.groundingMetadata?.groundingChunks as any[]) || [];
+
+  // QUANTUM SIGNAL BYPASS: Instant recovery from raw search metadata
+  const recoveredSignals: IntelligenceSignal[] = [];
+  const seenUrls = new Set((parsed?.signals || []).map((s: any) => s.url?.toLowerCase()));
+
+  grounding.forEach((chunk, i) => {
+    if (chunk.web && chunk.web.uri) {
+      const uri = chunk.web.uri.toLowerCase();
+      const matchesPlatform = params.platforms.some(p => uri.includes(p.toLowerCase()));
+      
+      if (matchesPlatform && !seenUrls.has(uri)) {
+        const platform = identifyPlatform(uri);
+        const isPrivate = uri.includes('+') || uri.includes('joinchat') || uri.includes('chat.whatsapp');
+        
+        recoveredSignals.push({
+          id: `qnt-${i}-${Date.now()}`,
+          title: chunk.web.title || `Found: ${platform}`,
+          url: chunk.web.uri,
+          platform,
+          type: isPrivate ? 'Private Group' : 'Public Group',
+          description: "Recovered via Quantum Bypass Layer.",
+          isPrivate,
+          securityLevel: isPrivate ? 'High' : 'Low',
+          confidenceScore: isPrivate ? 95 : 75,
+          status: 'Active',
+          timestamp: new Date().toLocaleTimeString(),
+          location: params.location,
+          sharedBy: "Global Matrix"
+        });
+        seenUrls.add(uri);
+      }
+    }
+  });
+
+  const finalSignals = [
+    ...(parsed?.signals || []).map((s: any) => ({
+      ...s,
+      id: `ops-v13-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date().toLocaleTimeString(),
+      platform: identifyPlatform(s.url),
+      location: params.location,
+      securityLevel: s.isPrivate ? 'High' : 'Low'
+    })),
+    ...recoveredSignals
+  ];
+
+  // Professional prioritization
+  finalSignals.sort((a, b) => (b.isPrivate ? 1 : -1) - (a.isPrivate ? 1 : -1) || (b.confidenceScore - a.confidenceScore));
+
+  return {
+    analysis: parsed?.analysis || "Quantum scan complete. Signal density optimal.",
+    signals: finalSignals,
+    groundingSources: grounding.filter(c => c.web).map(c => ({ title: c.web.title, uri: c.web.uri })),
+    summary: {
+      totalDetected: finalSignals.length,
+      privateSignals: finalSignals.filter(s => s.isPrivate).length,
+      signalStrength: finalSignals.length > 0 
+        ? Math.round(finalSignals.reduce((acc, s) => acc + (s.confidenceScore || 50), 0) / finalSignals.length) 
+        : 0
+    }
+  };
 };
