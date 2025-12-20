@@ -20,6 +20,7 @@ export type PlatformType =
   | 'Signal';
 
 export type SearchMode = 'discovery' | 'username' | 'phone' | 'medical-residency';
+export type SearchScope = 'communities' | 'documents' | 'events' | 'profiles';
 
 export interface ConnectedIdentity {
   platform: PlatformType;
@@ -34,7 +35,7 @@ export interface IntelLink {
   description: string;
   url: string;
   platform: PlatformType;
-  type: 'Group' | 'Channel' | 'Profile' | 'Bot' | 'Thread';
+  type: 'Group' | 'Channel' | 'Profile' | 'Bot' | 'Document' | 'Event';
   status: 'Active' | 'Unknown' | 'Revoked';
   members?: string;
   location?: string;
@@ -56,8 +57,9 @@ export interface SearchResult {
 export interface SearchParams {
   query: string;
   mode: SearchMode;
+  scope: SearchScope; // New: Defines WHAT we are looking for (Chats vs Files vs Events)
   platforms: PlatformType[];
-  identities: ConnectedIdentity[]; // New: List of connected user accounts
+  identities: ConnectedIdentity[];
   location?: {
     country?: string;
     city?: string;

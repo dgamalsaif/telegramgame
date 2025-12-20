@@ -20,9 +20,7 @@ const parseSafeJSON = (text: string): any => {
 
 // Advanced "Dork" Builder
 const buildSearchVector = (params: SearchParams): string => {
-  const { query, mode, platforms, location, medicalContext, identities } = params;
-  
-  let vector = "";
+  const { query, mode, scope, platforms, location, medicalContext, identities } = params;
   
   // 1. Define Platform Footprints
   const footprints: Record<string, string> = {
@@ -30,7 +28,7 @@ const buildSearchVector = (params: SearchParams): string => {
     'WhatsApp': '(site:chat.whatsapp.com)',
     'Discord': '(site:discord.gg OR site:discord.com/invite)',
     'Facebook': '(site:facebook.com/groups)',
-    'LinkedIn': '(site:linkedin.com/groups OR site:linkedin.com/in)',
+    'LinkedIn': '(site:linkedin.com/groups OR site:linkedin.com/in OR site:linkedin.com/posts)',
     'X': '(site:twitter.com OR site:x.com)',
     'Instagram': '(site:instagram.com)',
     'Reddit': '(site:reddit.com/r/)',
@@ -39,34 +37,45 @@ const buildSearchVector = (params: SearchParams): string => {
   };
 
   const selectedFootprints = platforms.map(p => footprints[p]).join(' OR ');
-  const scope = selectedFootprints ? `(${selectedFootprints})` : '';
+  const platformScope = selectedFootprints ? `(${selectedFootprints})` : '';
 
   // 2. Location String
-  const locStr = [location?.country, location?.city, location?.institution].filter(Boolean).join(' ');
+  const locStr = [location?.country, location?.city, location?.institution].filter(Boolean).map(s => `"${s}"`).join(' AND ');
 
   // 3. Identity Augmentation (Deep Scan)
-  // If user connected accounts, we assume they want to find things RELEVANT to them, 
-  // or we use their "Deep Scan" permission to look harder (conceptually).
-  // In practice, we append keywords that suggest "Open" or "Public" access which they might be looking for.
-  const deepScanContext = identities.length > 0 ? "AND (join OR chat OR invite)" : "";
+  // If authorized, we widen the net to include "hidden" or "private" keywords that might appear in public index leaks
+  const authKeywords = identities.length > 0 ? "OR \"private group\" OR \"confidential\"" : "";
 
-  // 4. Mode Specific Logic
+  // 4. Scope Logic (The "Any Field" handler)
+  let scopeKeywords = "";
+  if (scope === 'documents') {
+    scopeKeywords = '(filetype:pdf OR filetype:docx OR filetype:xlsx OR "google drive" OR "dropbox" OR "webalizer")';
+  } else if (scope === 'events') {
+    scopeKeywords = '(event OR webinar OR conference OR summit OR "save the date")';
+  } else if (scope === 'profiles') {
+    scopeKeywords = '(profile OR bio OR "connect with me" OR "my account") -inurl:group -inurl:chat';
+  } else {
+    // Default: Communities
+    scopeKeywords = '(chat OR join OR invite OR group OR community OR discussion OR forum)';
+  }
+
+  // 5. Mode Specific Logic
   if (mode === 'username') {
-    return `"${query}" (site:t.me OR site:twitter.com OR site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:github.com) -site:?*`;
+    return `"${query}" ${platformScope} -site:?*`;
   }
   
   if (mode === 'phone') {
-    return `"${query}" OR "${query.replace('+', '')}" OR "tel:${query}" (site:facebook.com OR site:linkedin.com OR site:t.me OR site:whatsapp.com)`;
+    return `"${query}" OR "${query.replace('+', '')}" OR "tel:${query}" ${platformScope}`;
   }
 
   if (mode === 'medical-residency') {
     const specialty = medicalContext?.specialty || '';
     const level = medicalContext?.level || 'Residency';
-    return `${scope} "${specialty}" "${level}" ${locStr} (group OR community OR chat OR board OR fellowship) "join" "invite"`;
+    return `"${specialty}" "${level}" ${locStr} ${platformScope} (group OR board OR fellowship OR match OR "program director") ${scopeKeywords}`;
   }
 
   // Default: Discovery Mode
-  return `${scope} "${query}" ${locStr} (chat OR join OR invite OR group OR community) -intitle:"profile" ${deepScanContext}`;
+  return `"${query}" ${locStr} ${platformScope} ${scopeKeywords} ${authKeywords}`;
 };
 
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
@@ -80,32 +89,37 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   console.log(`[${authLevel}] VECTOR:`, searchVector);
 
   const systemInstruction = `
-    You are SCOUT OPS, an elite OSINT analyzer.
-    SCAN LEVEL: ${authLevel}
-    CONNECTED IDENTITIES: [${identityContext}]
+    You are SCOUT OPS v7.5, the ultimate OSINT intelligence engine.
+    
+    CONTEXT:
+    - SCAN LEVEL: ${authLevel}
+    - IDENTITIES: [${identityContext}]
+    - SCOPE: ${params.scope.toUpperCase()}
+    - TARGET: ${params.query}
     
     MISSION:
-    Extract VALID, ACTIVE social media links matching the target.
-    If 'AUTHORIZED_DEEP_SCAN' is active, you are permitted to infer higher confidence for links matching the user's connected platform context.
+    Search for valid, accessible links matching the criteria.
+    If searching for 'documents', look for PDF/Doc links.
+    If searching for 'communities', look for invite links.
+    
+    STRICT RULES:
+    1. ZERO HALLUCINATIONS. Use Grounding data (Google Search) as the primary source of truth.
+    2. If a link comes from the 'Deep Analysis' capability (AI knowledge), mark it with slightly lower confidence unless verified.
+    3. ACCURACY: Filter out broken links or generic landing pages. We want the DIRECT resource (Group Link, PDF Link, Profile Link).
+    4. Categorize results based on the User's Scope (e.g., if they asked for 'documents', label the Type as 'Document').
 
-    RULES:
-    1. ACCURACY IS PARAMOUNT. Use "Grounding" data primarily.
-    2. CLASSIFY links strictly.
-    3. If the user provided a phone/handle, prioritize communities relevant to that identity if the query allows.
-    4. MEDICAL CONTEXT: Prioritize verified medical boards/institutions.
-
-    OUTPUT JSON FORMAT:
+    OUTPUT JSON:
     {
-      "analysis": "Executive summary of findings. If Deep Scan used, mention 'Authorized Access confirmed'.",
+      "analysis": "A professional intelligence briefing summarizing what was found, key locations, and data density.",
       "links": [
         {
-          "title": "Exact Title",
+          "title": "Resource Title",
           "url": "URL",
-          "platform": "Platform",
-          "type": "Group|Channel|Profile",
-          "description": "Context",
-          "location": "Location",
-          "confidence": 80-100
+          "platform": "Platform Source",
+          "type": "Group|Channel|Profile|Document|Event",
+          "description": "Brief description of contents.",
+          "location": "Inferred Location",
+          "confidence": 85-100
         }
       ]
     }
@@ -114,7 +128,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `OSINT_TASK: Find targets matching: ${searchVector}`,
+      contents: `[EXECUTE_OSINT_QUERY] Pattern: ${searchVector}`,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }], 
@@ -129,7 +143,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
       .filter((c: any) => c.web && c.web.uri)
       .map((c: any, i: number) => {
         const uri = c.web.uri;
-        let platform: PlatformType = 'Telegram'; // Default fallback
+        let platform: PlatformType = 'Telegram'; // Default fallback or "Web"
         
         if (uri.includes('t.me')) platform = 'Telegram';
         else if (uri.includes('whatsapp')) platform = 'WhatsApp';
@@ -141,20 +155,27 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
         else if (uri.includes('reddit')) platform = 'Reddit';
         else if (uri.includes('tiktok')) platform = 'TikTok';
 
+        // Determine Type based on URI structure & Scope
         let type: IntelLink['type'] = 'Group';
-        if (uri.includes('join') || uri.includes('invite')) type = 'Group';
-        else if (platform === 'Telegram' && !uri.includes('joinchat')) type = 'Channel';
-        else if (platform === 'LinkedIn' && uri.includes('/in/')) type = 'Profile';
+        
+        if (params.scope === 'documents') type = 'Document';
+        else if (params.scope === 'events') type = 'Event';
+        else if (params.scope === 'profiles') type = 'Profile';
+        else {
+           if (uri.includes('join') || uri.includes('invite')) type = 'Group';
+           else if (platform === 'Telegram' && !uri.includes('joinchat')) type = 'Channel';
+           else if (platform === 'LinkedIn' && uri.includes('/in/')) type = 'Profile';
+        }
 
         return {
           id: `g-${i}`,
-          title: c.web.title || "Detected Signal",
+          title: c.web.title || "Intercepted Signal",
           url: uri,
           description: "Verified signal via live ground search.",
           platform,
           type,
           status: 'Active',
-          confidence: 100,
+          confidence: 100, // MAX CONFIDENCE FOR GROUNDED RESULTS
           source: 'Live Grounding',
           tags: ['Verified', 'Live'],
           location: params.location?.country || 'Global'
@@ -174,9 +195,9 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
             description: aiLink.description,
             url: aiLink.url,
             platform: aiLink.platform as PlatformType,
-            type: aiLink.type || 'Group',
+            type: aiLink.type || params.scope === 'documents' ? 'Document' : 'Group',
             status: 'Unknown',
-            confidence: aiLink.confidence || 85,
+            confidence: aiLink.confidence || 70, // LOWER DEFAULT FOR AI HALLUCINATIONS
             source: 'Deep Analysis',
             tags: ['AI_Inferred', authLevel === 'AUTHORIZED_DEEP_SCAN' ? 'Deep_Scan' : 'Public'],
             location: aiLink.location || 'Global'
@@ -185,8 +206,17 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
       });
     }
 
-    const filteredLinks = finalLinks.filter(l => params.platforms.includes(l.platform));
+    // 3. Filtering & Thresholding
+    const CONFIDENCE_THRESHOLD = 60;
+    
+    let filteredLinks = finalLinks.filter(l => l.confidence >= CONFIDENCE_THRESHOLD);
 
+    // Filter by Platform if it's strictly a social search, otherwise allow web results for docs
+    filteredLinks = params.scope === 'documents' 
+      ? filteredLinks 
+      : filteredLinks.filter(l => params.platforms.includes(l.platform));
+
+    // Calculate Stats
     const platformDist: Record<string, number> = {};
     filteredLinks.forEach(l => {
       platformDist[l.platform] = (platformDist[l.platform] || 0) + 1;
