@@ -42,126 +42,6 @@ const ScanOverlay = () => (
 
 // --- Sub-Components ---
 
-const LoginGate = ({ onLogin }: { onLogin: (identity: ConnectedIdentity) => void }) => {
-  const [loadingPlatform, setLoadingPlatform] = useState<PlatformType | null>(null);
-  const [status, setStatus] = useState("INITIALIZING SECURE GATEWAY...");
-
-  const handleAuth = (platform: PlatformType) => {
-    setLoadingPlatform(platform);
-    
-    // Simulation sequence
-    const sequence = [
-      { t: 0, msg: `CONTACTING ${platform.toUpperCase()} SERVERS...` },
-      { t: 800, msg: "HANDSHAKE ESTABLISHED. VERIFYING KEY..." },
-      { t: 1800, msg: "REQUESTING USER PERMISSIONS..." },
-      { t: 2500, msg: "FETCHING PROFILE DATA..." },
-      { t: 3200, msg: "ACCESS GRANTED." }
-    ];
-
-    sequence.forEach(({ t, msg }) => {
-      setTimeout(() => setStatus(msg), t);
-    });
-
-    setTimeout(() => {
-      onLogin({
-        platform,
-        type: 'handle',
-        value: 'AuthorizedUser_X7',
-        verifiedAt: new Date().toISOString()
-      });
-    }, 3500);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] bg-[#020408] flex items-center justify-center p-4">
-      <ScanOverlay />
-      
-      {/* Background World Map Effect */}
-      <div className="absolute inset-0 opacity-10 flex items-center justify-center pointer-events-none">
-         <i className="fa-solid fa-earth-americas text-[600px] animate-pulse"></i>
-      </div>
-
-      <div className="max-w-md w-full relative z-10">
-        <div className="bg-[#0b0d12]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-[0_0_100px_rgba(79,70,229,0.15)] relative overflow-hidden">
-          
-          {/* Header */}
-          <div className="text-center mb-10">
-            <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(79,70,229,0.5)]">
-              <i className="fa-solid fa-shield-halved text-3xl text-white"></i>
-            </div>
-            <h1 className="text-2xl font-black text-white tracking-wider mb-2">ACCESS CONTROL</h1>
-            <p className="text-[10px] text-slate-400 font-mono tracking-[0.2em] uppercase">
-              Identify yourself to proceed
-            </p>
-          </div>
-
-          {/* Login Options */}
-          <div className="space-y-3">
-            {loadingPlatform ? (
-              <div className="py-12 text-center space-y-4">
-                 <div className="relative w-16 h-16 mx-auto">
-                    <div className="absolute inset-0 border-4 border-indigo-500/30 rounded-full"></div>
-                    <div className="absolute inset-0 border-t-4 border-indigo-500 rounded-full animate-spin"></div>
-                    <i className={`fa-brands fa-${loadingPlatform.toLowerCase()} absolute inset-0 flex items-center justify-center text-xl text-white`}></i>
-                 </div>
-                 <div className="text-[10px] font-mono text-indigo-400 animate-pulse uppercase">{status}</div>
-              </div>
-            ) : (
-              <>
-                <button 
-                  onClick={() => handleAuth('Telegram')}
-                  className="w-full bg-[#2AABEE]/10 hover:bg-[#2AABEE] border border-[#2AABEE]/30 hover:border-[#2AABEE] text-[#2AABEE] hover:text-white py-4 rounded-xl transition-all duration-300 group flex items-center justify-between px-6"
-                >
-                  <span className="font-bold tracking-wide flex items-center gap-3">
-                    <i className="fa-brands fa-telegram text-xl"></i> Login with Telegram
-                  </span>
-                  <i className="fa-solid fa-arrow-right opacity-0 group-hover:opacity-100 transition-opacity transform -translate-x-2 group-hover:translate-x-0"></i>
-                </button>
-
-                <button 
-                  onClick={() => handleAuth('Facebook')}
-                  className="w-full bg-[#1877F2]/10 hover:bg-[#1877F2] border border-[#1877F2]/30 hover:border-[#1877F2] text-[#1877F2] hover:text-white py-4 rounded-xl transition-all duration-300 group flex items-center justify-between px-6"
-                >
-                   <span className="font-bold tracking-wide flex items-center gap-3">
-                    <i className="fa-brands fa-facebook text-xl"></i> Login with Facebook
-                  </span>
-                  <i className="fa-solid fa-arrow-right opacity-0 group-hover:opacity-100 transition-opacity transform -translate-x-2 group-hover:translate-x-0"></i>
-                </button>
-
-                <button 
-                  onClick={() => handleAuth('X')}
-                  className="w-full bg-white/5 hover:bg-black border border-white/20 hover:border-white text-slate-300 hover:text-white py-4 rounded-xl transition-all duration-300 group flex items-center justify-between px-6"
-                >
-                   <span className="font-bold tracking-wide flex items-center gap-3">
-                    <i className="fa-brands fa-x-twitter text-xl"></i> Login with X
-                  </span>
-                  <i className="fa-solid fa-arrow-right opacity-0 group-hover:opacity-100 transition-opacity transform -translate-x-2 group-hover:translate-x-0"></i>
-                </button>
-
-                <div className="relative py-4">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-                  <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-[#0b0d12] px-2 text-slate-500">Or continue as guest</span></div>
-                </div>
-
-                <button 
-                  onClick={() => onLogin({ platform: 'Signal', type: 'handle', value: 'Guest_User', verifiedAt: new Date().toISOString() })}
-                  className="w-full py-3 text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors"
-                >
-                  Enter Restricted Mode
-                </button>
-              </>
-            )}
-          </div>
-          
-          <div className="mt-8 text-center">
-            <p className="text-[9px] text-slate-600 font-mono">SECURE CONNECTION // 256-BIT ENCRYPTION</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const ConnectModal = ({ 
   platform, 
   onClose, 
@@ -171,106 +51,134 @@ const ConnectModal = ({
   onClose: () => void, 
   onConnect: (id: ConnectedIdentity) => void 
 }) => {
-  const [step, setStep] = useState<'select' | 'verifying' | 'success'>('select');
-  const [selectedMethod, setSelectedMethod] = useState<'app' | 'manual'>('app');
-  const [manualValue, setManualValue] = useState('');
+  const [step, setStep] = useState<'login' | 'verifying' | 'success'>('login');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
 
   if (!platform) return null;
 
-  const handleAppConnect = () => {
+  const platformData = ALL_PLATFORMS.find(p => p.id === platform);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if(!username || !password) return;
+
     setStep('verifying');
-    // Simulate OAuth Delay
+    setStatusMsg(`Connecting to ${platform} servers...`);
+
+    // Simulate Verification Flow
+    setTimeout(() => setStatusMsg("Verifying Credentials..."), 800);
+    setTimeout(() => setStatusMsg("Bypassing 2FA Challenge..."), 2000);
+    setTimeout(() => setStatusMsg("Authorizing SCOUT OPS Agent..."), 3500);
+    
     setTimeout(() => {
         setStep('success');
         setTimeout(() => {
             onConnect({
                 platform,
                 type: 'handle',
-                value: `Verified_${platform}_User`,
+                value: username,
                 verifiedAt: new Date().toISOString()
             });
             onClose();
-        }, 1000);
-    }, 2000);
+        }, 1200);
+    }, 4500);
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-300">
-      <div className="bg-[#0b0d12] border border-indigo-500/30 rounded-3xl w-full max-w-md p-8 relative overflow-hidden shadow-[0_0_50px_rgba(79,70,229,0.15)]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+      <div className="bg-[#1e2024] border border-slate-700 rounded-2xl w-full max-w-sm relative overflow-hidden shadow-2xl">
         
-        <div className="flex justify-between items-center mb-8 relative z-10">
-          <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
-            <span className="w-2 h-8 bg-indigo-500 block rounded-sm"></span>
-            Uplink: <span className="text-indigo-400">{platform}</span>
-          </h2>
-          <button onClick={onClose} className="text-slate-600 hover:text-white transition-colors">
-            <i className="fa-solid fa-xmark text-xl"></i>
-          </button>
+        {/* Header - Looks like a popup window */}
+        <div className="bg-[#0f1115] px-4 py-3 border-b border-slate-700 flex justify-between items-center">
+            <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
+                <i className={`${platformData?.icon} ${platformData?.color}`}></i>
+                <span>Log in to {platform}</span>
+            </div>
+            <button onClick={onClose} className="text-slate-500 hover:text-white">
+                <i className="fa-solid fa-xmark"></i>
+            </button>
         </div>
 
-        <div className="space-y-6 relative z-10">
-            {step === 'select' && (
-                <>
-                    <button 
-                        onClick={handleAppConnect}
-                        className="w-full bg-white/5 hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-500 text-white p-4 rounded-xl flex items-center gap-4 transition-all group"
-                    >
-                        <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-                            <i className={`fa-brands fa-${platform?.toLowerCase()} text-xl`}></i>
+        <div className="p-6">
+            {step === 'login' && (
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="text-center mb-6">
+                        <div className={`w-16 h-16 mx-auto rounded-xl bg-[#0f1115] flex items-center justify-center text-3xl mb-3 border border-slate-700 ${platformData?.color}`}>
+                             <i className={platformData?.icon}></i>
                         </div>
-                        <div className="text-left">
-                            <div className="text-sm font-bold">Connect via {platform} App</div>
-                            <div className="text-[10px] text-slate-400">Launch authentication gateway</div>
-                        </div>
-                        <i className="fa-solid fa-chevron-right ml-auto text-slate-500 group-hover:text-white"></i>
-                    </button>
-
-                    <div className="relative">
-                         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-                         <div className="relative flex justify-center text-[9px] uppercase"><span className="bg-[#0b0d12] px-2 text-slate-600">Or enter manually</span></div>
+                        <h3 className="text-white font-bold">Authorize Access</h3>
+                        <p className="text-xs text-slate-400">Log in to allow SCOUT OPS to search {platform} groups.</p>
                     </div>
 
-                    <div className="group">
-                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-2">Manual Handle / ID</label>
-                        <div className="flex gap-2">
-                             <input 
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Email or Username</label>
+                            <input 
                                 type="text" 
-                                value={manualValue}
-                                onChange={e => setManualValue(e.target.value)}
-                                className="flex-1 bg-black border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:border-indigo-500 outline-none"
-                                placeholder="@username"
-                             />
-                             <button 
-                                onClick={() => {
-                                    if(manualValue) handleAppConnect();
-                                }}
-                                className="px-4 bg-white/10 hover:bg-white/20 text-white rounded-lg"
-                             >
-                                <i className="fa-solid fa-arrow-right"></i>
-                             </button>
+                                value={username}
+                                onChange={e => setUsername(e.target.value)}
+                                className="w-full bg-black border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                placeholder="Start typing..."
+                                autoFocus
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Password</label>
+                            <input 
+                                type="password" 
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                className="w-full bg-black border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                placeholder="••••••••"
+                            />
                         </div>
                     </div>
-                </>
+
+                    <button 
+                        type="submit"
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg mt-2"
+                    >
+                        Log In & Authorize
+                    </button>
+                </form>
             )}
 
             {step === 'verifying' && (
-                <div className="py-12 text-center">
-                    <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <div className="text-sm font-bold text-white">Authenticating...</div>
-                    <div className="text-[10px] text-slate-400 mt-2 font-mono">HANDSHAKE_INITIATED</div>
+                <div className="py-8 text-center space-y-4">
+                    <div className="relative w-16 h-16 mx-auto">
+                        <div className="absolute inset-0 border-4 border-slate-700 rounded-full"></div>
+                        <div className="absolute inset-0 border-t-4 border-indigo-500 rounded-full animate-spin"></div>
+                        <i className="fa-solid fa-shield-halved absolute inset-0 flex items-center justify-center text-slate-500"></i>
+                    </div>
+                    <div>
+                        <div className="text-sm font-bold text-white mb-1">Authenticating</div>
+                        <div className="text-xs text-indigo-400 font-mono animate-pulse">{statusMsg}</div>
+                    </div>
                 </div>
             )}
 
             {step === 'success' && (
-                <div className="py-12 text-center">
-                    <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                        <i className="fa-solid fa-check text-2xl text-black"></i>
+                <div className="py-8 text-center space-y-4">
+                     <div className="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto border border-emerald-500/50">
+                        <i className="fa-solid fa-check text-2xl"></i>
                     </div>
-                    <div className="text-sm font-bold text-white">Connection Established</div>
-                    <div className="text-[10px] text-emerald-400 mt-2 font-mono">UPLINK_SECURE</div>
+                    <div>
+                        <div className="text-sm font-bold text-white">Connection Successful</div>
+                        <div className="text-xs text-slate-400 mt-1">Ready for Deep Search</div>
+                    </div>
                 </div>
             )}
         </div>
+        
+        {step === 'login' && (
+             <div className="bg-[#0f1115] px-4 py-3 text-center border-t border-slate-700">
+                <span className="text-[10px] text-slate-500">
+                    <i className="fa-solid fa-lock mr-1"></i> End-to-End Encrypted Handshake
+                </span>
+            </div>
+        )}
       </div>
     </div>
   );
@@ -366,14 +274,15 @@ const FilterSidebar = ({
           <div className="space-y-3">
              {identities.length === 0 ? (
                <div className="p-3 rounded-lg border border-dashed border-slate-700 text-center">
-                 <p className="text-[9px] text-slate-500 mb-2 font-mono">NO ACTIVE UPLINKS</p>
+                 <p className="text-[9px] text-slate-500 mb-2 font-mono">NO ACTIVE ACCOUNTS</p>
+                 <p className="text-[8px] text-slate-600">Connect platforms below to enable deep search.</p>
                </div>
              ) : (
                <div className="flex flex-wrap gap-2">
                   {identities.map((id: ConnectedIdentity, idx: number) => (
                     <div key={idx} className="pl-2 pr-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-[9px] text-emerald-400 flex items-center gap-2">
                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                       {id.platform}
+                       {id.platform}: {id.value}
                     </div>
                   ))}
                </div>
@@ -403,17 +312,19 @@ const FilterSidebar = ({
                   {p.id}
                   
                   <div className="ml-auto flex items-center gap-1.5">
+                    {isConnected && <div className="text-[8px] text-emerald-500 font-mono">AUTH</div>}
                     <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)] animate-pulse' : 'bg-red-500/30'}`}></div>
                   </div>
                 </button>
                 
                 <button 
                   onClick={() => onOpenConnect(p.id)}
-                  className={`w-8 flex items-center justify-center rounded-lg border transition-all hover:scale-105 ${
+                  className={`w-10 flex items-center justify-center rounded-lg border transition-all hover:scale-105 ${
                     isConnected 
                       ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-                      : 'bg-transparent border-white/5 text-slate-700 hover:text-indigo-400 hover:border-indigo-500/30'
+                      : 'bg-transparent border-white/5 text-slate-700 hover:text-white hover:bg-white/10 hover:border-white/20'
                   }`}
+                  title={isConnected ? "Reconnect Account" : `Connect ${p.id} Account`}
                 >
                   <i className={`fa-solid ${isConnected ? 'fa-link' : 'fa-plug'} text-xs`}></i>
                 </button>
@@ -481,9 +392,6 @@ const FilterSidebar = ({
 // --- Main Application ---
 
 const App: React.FC = () => {
-  // Auth State
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
   // State
   const [mode, setMode] = useState<SearchMode>('discovery');
   const [scope, setScope] = useState<SearchScope>('communities');
@@ -535,15 +443,10 @@ const App: React.FC = () => {
   };
 
   const handleConnectIdentity = (id: ConnectedIdentity) => {
+    // Replace existing identity for this platform if it exists
     setIdentities(prev => [...prev.filter(i => i.platform !== id.platform), id]); 
-    log(`SECURE HANDSHAKE: ${id.platform} verified.`);
-    log(`AUTHORIZATION LEVEL INCREASED.`);
-  };
-
-  const handleLogin = (identity: ConnectedIdentity) => {
-    setIsLoggedIn(true);
-    setIdentities([identity]);
-    log(`ACCESS GRANTED: WELCOME ${identity.value}`);
+    log(`SECURE HANDSHAKE: ${id.platform} account authorized: ${id.value}`);
+    log(`SCAN DEPTH INCREASED FOR ${id.platform.toUpperCase()}.`);
   };
 
   const handleExport = () => {
@@ -642,10 +545,6 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
-
-  if (!isLoggedIn) {
-      return <LoginGate onLogin={handleLogin} />;
-  }
 
   return (
     <div className="flex h-screen bg-[#010204] text-slate-200 font-['Cairo'] overflow-hidden relative" dir="ltr">
