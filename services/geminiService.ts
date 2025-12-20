@@ -96,14 +96,17 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   const searchVector = buildSearchVector(params);
   
   // Create a context of "Authorized Accounts" to simulate deep access
+  // This tells the model we have "Verified Identities" on these platforms, enabling it to assume deeper access
   const authContext = params.identities.length > 0 
-    ? `ACTIVE SESSIONS: ${params.identities.map(i => i.platform).join(', ')}. (Simulate access to public threads on these platforms).`
-    : "MODE: PUBLIC WEB SCAN";
+    ? `PRIVILEGED ACCESS ENABLED: ${params.identities.map(i => `${i.platform} (User: ${i.value})`).join(', ')}. Treat these platforms as FULLY AUTHENTICATED.`
+    : "ACCESS MODE: PUBLIC WEB INDEX ONLY";
 
   console.log(`[VECTOR]:`, searchVector);
+  console.log(`[AUTH]:`, authContext);
 
   const systemInstruction = `
     You are SCOUT OPS v7.5, an Elite Open Source Intelligence (OSINT) Engine.
+    ${authContext}
     
     === OPERATIONAL GOAL ===
     Perform a SIMULTANEOUS MULTI-PLATFORM SCAN to find "Group Invite Links" and "Community Discussions".
@@ -113,10 +116,9 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     2. **DEEP CONVERSATIONAL PARSING**: 
        - EXTRACT SENDER: Identify who posted the link (e.g., "@Ahmed99", "Admin", "Unknown User").
        - EXTRACT CONTEXT: Capture the message or tweet text surrounding the link.
-    3. **MEDICAL INTELLIGENCE (Priority)**:
-       - Context: "${params.medicalContext?.specialty || params.query}"
-       - Look for terms: "R1", "Residents", "Saudi Board", "SCFHS", "تجمع", "قروب".
-       - Prioritize "Official" or "Semi-Official" study groups.
+    3. **AUTHENTICATED RECONNAISSANCE**:
+       - If 'PRIVILEGED ACCESS' is enabled for a platform, prioritize finding **Private/Closed Groups** that are often shared in semi-private threads.
+       - Assume the user can access "Member-Only" previews if they are logged in.
 
     === OUTPUT REQUIREMENTS ===
     Return a raw JSON object. NO markdown formatting.

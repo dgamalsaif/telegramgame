@@ -51,9 +51,13 @@ const ConnectModal = ({
   onClose: () => void, 
   onConnect: (id: ConnectedIdentity) => void 
 }) => {
-  const [step, setStep] = useState<'login' | 'verifying' | 'success'>('login');
+  // Steps: login -> sending_code -> enter_code -> verifying -> success
+  const [step, setStep] = useState<'login' | 'sending_code' | 'enter_code' | 'verifying' | 'success'>('login');
+  
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [saveCreds, setSaveCreds] = useState(true);
   const [statusMsg, setStatusMsg] = useState('');
 
@@ -63,28 +67,36 @@ const ConnectModal = ({
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if(!username || !password) return;
+    if(!username || !password || !email) return;
 
-    setStep('verifying');
-    setStatusMsg(`Connecting to ${platform} servers...`);
-
-    // Simulate Verification Flow
-    setTimeout(() => setStatusMsg("Verifying Credentials..."), 800);
-    setTimeout(() => setStatusMsg("Bypassing 2FA Challenge..."), 2000);
-    setTimeout(() => setStatusMsg("Authorizing SCOUT OPS Agent..."), 3500);
-    
+    setStep('sending_code');
+    // Simulate API call to send email
     setTimeout(() => {
-        setStep('success');
-        setTimeout(() => {
+        setStep('enter_code');
+    }, 2000);
+  };
+
+  const handleVerifyCode = (e: React.FormEvent) => {
+      e.preventDefault();
+      if(code.length < 4) return;
+      
+      setStep('verifying');
+      setStatusMsg("Validating 2FA Token...");
+      
+      setTimeout(() => {
+          setStep('success');
+          setTimeout(() => {
             onConnect({
                 platform,
                 type: 'handle',
                 value: username,
+                email: email,
+                password: saveCreds ? password : '', // Store password if requested
                 verifiedAt: new Date().toISOString()
             });
             onClose();
-        }, 1200);
-    }, 4500);
+          }, 1500);
+      }, 2000);
   };
 
   return (
@@ -110,30 +122,41 @@ const ConnectModal = ({
                              <i className={platformData?.icon}></i>
                         </div>
                         <h3 className="text-white font-bold">Authorize Access</h3>
-                        <p className="text-xs text-slate-400">Enter credentials to enable deep search on {platform}.</p>
+                        <p className="text-xs text-slate-400">Enter credentials to enable deep search.</p>
                     </div>
 
                     <div className="space-y-3">
                         <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Email or Username</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Username / Handle</label>
                             <input 
                                 type="text" 
                                 value={username}
                                 onChange={e => setUsername(e.target.value)}
-                                className="w-full bg-black border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
-                                placeholder="Start typing..."
+                                className="w-full bg-black border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+                                placeholder={`Your ${platform} username...`}
                                 autoFocus
                             />
                         </div>
-                        <div>
+                         <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Password</label>
                             <input 
                                 type="password" 
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
-                                className="w-full bg-black border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                className="w-full bg-black border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
                                 placeholder="••••••••"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Verification Email</label>
+                            <input 
+                                type="email" 
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                className="w-full bg-black border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+                                placeholder="name@example.com"
+                            />
+                            <p className="text-[9px] text-slate-500 mt-1">We will send a verification code to this email.</p>
                         </div>
                         
                         <div className="flex items-center gap-2 pt-2">
@@ -144,7 +167,7 @@ const ConnectModal = ({
                              onChange={e => setSaveCreds(e.target.checked)}
                              className="rounded bg-black border-slate-600 text-indigo-500 focus:ring-indigo-500"
                            />
-                           <label htmlFor="saveCreds" className="text-xs text-slate-400 cursor-pointer">Stay logged in (Save Session)</label>
+                           <label htmlFor="saveCreds" className="text-xs text-slate-400 cursor-pointer">Remember me (Auto-Login)</label>
                         </div>
                     </div>
 
@@ -152,7 +175,47 @@ const ConnectModal = ({
                         type="submit"
                         className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg mt-2"
                     >
-                        Log In & Authorize
+                        Verify & Log In
+                    </button>
+                </form>
+            )}
+
+            {step === 'sending_code' && (
+                <div className="py-12 text-center space-y-4">
+                     <i className="fa-solid fa-paper-plane text-4xl text-indigo-500 animate-bounce"></i>
+                     <div>
+                        <div className="text-sm font-bold text-white">Sending Verification Code</div>
+                        <div className="text-xs text-slate-400">Please check {email}...</div>
+                     </div>
+                </div>
+            )}
+
+            {step === 'enter_code' && (
+                <form onSubmit={handleVerifyCode} className="space-y-6">
+                     <div className="text-center">
+                        <i className="fa-solid fa-envelope-open-text text-3xl text-emerald-400 mb-3"></i>
+                        <h3 className="text-white font-bold">Check Your Email</h3>
+                        <p className="text-xs text-slate-400">We sent a 6-digit code to <span className="text-white">{email}</span></p>
+                    </div>
+
+                    <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 text-center">Enter Verification Code</label>
+                        <input 
+                            type="text" 
+                            value={code}
+                            onChange={e => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0,6))}
+                            className="w-full bg-black border border-slate-600 rounded-lg px-3 py-4 text-center text-2xl font-mono tracking-[0.5em] text-white focus:border-emerald-500 outline-none"
+                            placeholder="000000"
+                            autoFocus
+                        />
+                        <p className="text-[9px] text-center text-slate-500 mt-2">Use '123456' for training simulation</p>
+                    </div>
+
+                    <button 
+                        type="submit"
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg"
+                    >
+                        Confirm Code
                     </button>
                 </form>
             )}
@@ -161,12 +224,12 @@ const ConnectModal = ({
                 <div className="py-8 text-center space-y-4">
                     <div className="relative w-16 h-16 mx-auto">
                         <div className="absolute inset-0 border-4 border-slate-700 rounded-full"></div>
-                        <div className="absolute inset-0 border-t-4 border-indigo-500 rounded-full animate-spin"></div>
-                        <i className="fa-solid fa-shield-halved absolute inset-0 flex items-center justify-center text-slate-500"></i>
+                        <div className="absolute inset-0 border-t-4 border-emerald-500 rounded-full animate-spin"></div>
+                        <i className="fa-solid fa-lock absolute inset-0 flex items-center justify-center text-slate-500"></i>
                     </div>
                     <div>
-                        <div className="text-sm font-bold text-white mb-1">Authenticating</div>
-                        <div className="text-xs text-indigo-400 font-mono animate-pulse">{statusMsg}</div>
+                        <div className="text-sm font-bold text-white mb-1">Authenticating Session</div>
+                        <div className="text-xs text-emerald-400 font-mono animate-pulse">{statusMsg}</div>
                     </div>
                 </div>
             )}
@@ -177,7 +240,7 @@ const ConnectModal = ({
                         <i className="fa-solid fa-check text-2xl"></i>
                     </div>
                     <div>
-                        <div className="text-sm font-bold text-white">Connection Successful</div>
+                        <div className="text-sm font-bold text-white">Identity Verified</div>
                         <div className="text-xs text-slate-400 mt-1">Credentials Stored Securely</div>
                     </div>
                 </div>
@@ -290,11 +353,17 @@ const FilterSidebar = ({
                  <p className="text-[8px] text-slate-600">Connect platforms below to enable deep search.</p>
                </div>
              ) : (
-               <div className="flex flex-wrap gap-2">
+               <div className="flex flex-col gap-2">
                   {identities.map((id: ConnectedIdentity, idx: number) => (
-                    <div key={idx} className="pl-2 pr-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-[9px] text-emerald-400 flex items-center gap-2">
-                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                       {id.platform}: {id.value}
+                    <div key={idx} className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between group">
+                       <div className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <div>
+                            <div className="text-[10px] font-bold text-emerald-400">{id.platform}</div>
+                            <div className="text-[8px] text-slate-400 font-mono">{id.value}</div>
+                          </div>
+                       </div>
+                       <i className="fa-solid fa-shield-check text-emerald-500/50"></i>
                     </div>
                   ))}
                </div>
@@ -333,12 +402,12 @@ const FilterSidebar = ({
                   onClick={() => onOpenConnect(p.id)}
                   className={`w-10 flex items-center justify-center rounded-lg border transition-all hover:scale-105 ${
                     isConnected 
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]' 
                       : 'bg-transparent border-white/5 text-slate-700 hover:text-white hover:bg-white/10 hover:border-white/20'
                   }`}
-                  title={isConnected ? "Reconnect Account" : `Connect ${p.id} Account`}
+                  title={isConnected ? "Reconnect/Update" : `Connect ${p.id} Account`}
                 >
-                  <i className={`fa-solid ${isConnected ? 'fa-link' : 'fa-plug'} text-xs`}></i>
+                  <i className={`fa-solid ${isConnected ? 'fa-user-check' : 'fa-plug'} text-xs`}></i>
                 </button>
               </div>
             );
@@ -474,8 +543,8 @@ const App: React.FC = () => {
   const handleConnectIdentity = (id: ConnectedIdentity) => {
     // Replace existing identity for this platform if it exists
     setIdentities(prev => [...prev.filter(i => i.platform !== id.platform), id]); 
-    log(`SECURE HANDSHAKE: ${id.platform} account authorized: ${id.value}`);
-    log(`SCAN DEPTH INCREASED FOR ${id.platform.toUpperCase()}.`);
+    log(`SECURE HANDSHAKE: ${id.platform} account verified for user: ${id.value}`);
+    log(`ACCESS LEVEL ELEVATED: Authorized for deep search on ${id.platform}.`);
   };
 
   const handleExport = () => {

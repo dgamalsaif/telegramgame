@@ -25,7 +25,9 @@ export type SearchScope = 'communities' | 'channels' | 'events' | 'profiles';
 export interface ConnectedIdentity {
   platform: PlatformType;
   type: 'phone' | 'email' | 'handle';
-  value: string;
+  value: string; // The username or handle
+  email?: string; // The email used for verification
+  password?: string; // Stored for auto-login simulation
   verifiedAt: string;
 }
 
