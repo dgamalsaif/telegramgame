@@ -7,53 +7,56 @@ export interface Platform {
   color: string;
 }
 
-export type PlatformType = 'Telegram' | 'WhatsApp' | 'Discord' | 'X' | 'Facebook' | 'Instagram' | 'LinkedIn' | 'TikTok' | 'Reddit';
+export type PlatformType = 
+  | 'Telegram' 
+  | 'WhatsApp' 
+  | 'Discord' 
+  | 'X' 
+  | 'Facebook' 
+  | 'Instagram' 
+  | 'LinkedIn' 
+  | 'Reddit' 
+  | 'TikTok' 
+  | 'Signal';
+
+export type SearchMode = 'discovery' | 'username' | 'phone' | 'medical-residency';
 
 export interface IntelLink {
   id: string;
   title: string;
   description: string;
   url: string;
-  isPrivate: boolean;
-  isActive: boolean;
   platform: PlatformType;
+  type: 'Group' | 'Channel' | 'Profile' | 'Bot' | 'Thread';
+  status: 'Active' | 'Unknown' | 'Revoked';
+  members?: string;
+  location?: string;
   confidence: number;
-  location: {
-    country: string;
-  };
-  source: {
-    name: string;
-    uri: string;
-    type: 'Search' | 'Mention' | 'Directory' | 'Direct';
-    context?: string;
-  };
-  timestamp: string;
+  source: string;
+  tags: string[];
 }
 
 export interface SearchResult {
   analysis: string;
   links: IntelLink[];
-  messages: any[];
-  sources: Array<{ title: string; uri: string }>;
   stats: {
-    totalFound: number;
-    privateCount: number;
-    activeCount: number;
-    medicalMatches: number;
+    total: number;
+    platformDistribution: Record<string, number>;
+    topLocations: string[];
   };
 }
 
-export type SearchType = 'topic' | 'medical-recon' | 'deep-scan' | 'mention-tracker';
-
 export interface SearchParams {
   query: string;
-  location: string;
-  specialty?: string;
+  mode: SearchMode;
   platforms: PlatformType[];
-  searchType: SearchType;
-  filters: {
-    activeOnly: boolean;
-    privateOnly: boolean;
-    minConfidence: number;
+  location?: {
+    country?: string;
+    city?: string;
+    institution?: string; // Hospital or University
+  };
+  medicalContext?: {
+    specialty?: string; // e.g., Cardiology, Surgery
+    level?: string; // e.g., Board, Residency, Fellowship
   };
 }
