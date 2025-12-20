@@ -7,74 +7,77 @@ export interface Platform {
   color: string;
 }
 
-export interface UserProfile {
-  agentName: string;
-  telegramHandle: string;
-  operationalId: string;
-  isRegistered: boolean;
-  apiId?: string;
-  apiHash?: string;
-  phoneNumber?: string;
-  syncStatus?: 'disconnected' | 'syncing' | 'authorized';
-}
+export type PlatformType = 'Telegram' | 'WhatsApp' | 'Discord' | 'X' | 'Facebook' | 'Instagram' | 'LinkedIn' | 'TikTok';
 
-export interface TelegramGroup {
+export interface IntelLink {
   id: string;
   title: string;
   description: string;
   url: string;
-  sourcePostUrl?: string; 
-  category?: string;
   isPrivate: boolean;
-  isProfessional?: boolean;
-  platformSource: string;
-  linkType: 'Telegram' | 'WhatsApp' | 'Discord';
-  country?: string;
-  language?: string;
+  isActive: boolean;
+  platform: PlatformType;
+  confidence: number;
+  location: {
+    country: string;
+    town?: string;
+    hospital?: string;
+  };
+  source: {
+    name: string;
+    uri: string;
+    type: 'Search' | 'Leaked' | 'Directory' | 'Direct';
+  };
   timestamp: string;
-  confidenceScore: number;
-  joinMethod?: 'inviteLink' | 'username' | 'idSearch' | 'mention';
 }
 
-export interface TelegramMessage {
+export interface IntelMessage {
   id: string;
-  text: string;
-  sender: string;
+  content: string;
+  author: string;
+  platform: PlatformType;
   date: string;
-  groupTitle: string;
-  url: string;
+  sourceGroup: string;
+  sourceUrl?: string;
+  relevance: number;
+}
+
+export interface SearchResult {
+  analysis: string;
+  links: IntelLink[];
+  messages: IntelMessage[];
+  sources: Array<{ title: string; uri: string }>;
+  stats: {
+    totalFound: number;
+    privateCount: number;
+    activeCount: number;
+    hospitalMatches: number;
+  };
+}
+
+export type SearchType = 'topic' | 'user' | 'medical-scan' | 'deep-scan';
+
+export interface SearchParams {
+  query: string;
+  location: string;
+  town?: string;
+  hospital?: string;
+  platforms: Platform[];
+  searchType: SearchType;
+  filters: {
+    activeOnly: boolean;
+    privateOnly: boolean;
+    minConfidence: number;
+  };
 }
 
 export interface SearchHistoryItem {
   query: string;
+  location: string;
+  town?: string;
+  hospital?: string;
   timestamp: string;
   type: SearchType;
-}
-
-export interface SearchResult {
-  text: string;
-  sources: Array<{ title: string; uri: string }>;
-  parsedGroups: TelegramGroup[];
-  messages?: TelegramMessage[];
-  summary?: {
-    totalDetected: number;
-    privateRatio: string;
-    riskLevel: 'Low' | 'Medium' | 'High';
-  };
-}
-
-export type SearchMode = 'quick' | 'deep';
-export type SearchType = 'topic' | 'user';
-
-export interface SearchParams {
-  query: string;
-  country: string;
-  language: string;
-  category: string;
-  platforms: Platform[];
-  mode: SearchMode;
-  searchType: SearchType;
-  agentContext?: UserProfile;
 }
 
 declare global {
