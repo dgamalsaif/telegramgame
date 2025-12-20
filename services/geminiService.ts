@@ -18,18 +18,18 @@ const parseSafeJSON = (text: string): any => {
   }
 };
 
-// Advanced "Dork" Builder
+// Advanced "Dork" Builder - Optimized for GROUPS & COMMUNITIES (No Documents)
 const buildSearchVector = (params: SearchParams): string => {
   const { query, mode, scope, platforms, location, medicalContext, identities } = params;
   
-  // 1. Define Platform Footprints
+  // 1. Define Platform Footprints (Prioritize Invite/Group URLs)
   const footprints: Record<string, string> = {
-    'Telegram': '(site:t.me OR site:telegram.me OR site:tgstat.com OR site:telemetr.io)',
+    'Telegram': '(site:t.me/joinchat OR site:t.me/+ OR site:telegram.me OR "t.me/")',
     'WhatsApp': '(site:chat.whatsapp.com)',
     'Discord': '(site:discord.gg OR site:discord.com/invite)',
     'Facebook': '(site:facebook.com/groups)',
-    'LinkedIn': '(site:linkedin.com/groups OR site:linkedin.com/in OR site:linkedin.com/posts)',
-    'X': '(site:twitter.com OR site:x.com)',
+    'LinkedIn': '(site:linkedin.com/groups OR "linkedin.com/groups")',
+    'X': '(site:twitter.com OR site:x.com) ("join link" OR "group link" OR "whatsapp group" OR "telegram channel")',
     'Instagram': '(site:instagram.com)',
     'Reddit': '(site:reddit.com/r/)',
     'Signal': '(site:signal.group)',
@@ -39,27 +39,32 @@ const buildSearchVector = (params: SearchParams): string => {
   const selectedFootprints = platforms.map(p => footprints[p]).join(' OR ');
   const platformScope = selectedFootprints ? `(${selectedFootprints})` : '';
 
-  // 2. Location String
-  const locStr = [location?.country, location?.city, location?.institution].filter(Boolean).map(s => `"${s}"`).join(' AND ');
+  // 2. Location String (Strict Filter)
+  const locStr = [location?.country, location?.city, location?.institution]
+    .filter(Boolean)
+    .map(s => `"${s}"`)
+    .join(' AND ');
 
-  // 3. Identity Augmentation (Deep Scan)
-  // If authorized, we widen the net to include "hidden" or "private" keywords that might appear in public index leaks
+  // 3. Identity Augmentation
   const authKeywords = identities.length > 0 ? "OR \"private group\" OR \"confidential\"" : "";
 
-  // 4. Scope Logic (The "Any Field" handler)
+  // 4. Scope Logic - STRICTLY GROUPS/CHANNELS
   let scopeKeywords = "";
-  if (scope === 'documents') {
-    scopeKeywords = '(filetype:pdf OR filetype:docx OR filetype:xlsx OR "google drive" OR "dropbox" OR "webalizer")';
+  if (scope === 'channels') {
+    scopeKeywords = '(channel OR broadcast OR "subscriber count" OR "join channel")';
   } else if (scope === 'events') {
-    scopeKeywords = '(event OR webinar OR conference OR summit OR "save the date")';
+    scopeKeywords = '(event OR webinar OR conference OR summit OR "register now")';
   } else if (scope === 'profiles') {
-    scopeKeywords = '(profile OR bio OR "connect with me" OR "my account") -inurl:group -inurl:chat';
+    scopeKeywords = '(profile OR bio OR "admin" OR "moderator") -inurl:group -inurl:chat';
   } else {
-    // Default: Communities
-    scopeKeywords = '(chat OR join OR invite OR group OR community OR discussion OR forum)';
+    // Default: Communities / Groups
+    scopeKeywords = '(chat OR "join chat" OR "invite link" OR group OR community OR discussion OR forum OR "whatsapp group" OR "telegram group") -filetype:pdf -filetype:docx';
   }
 
-  // 5. Mode Specific Logic
+  // 5. Query Expansion for Medical (Handled in System Instruction mostly, but added keywords here)
+  let queryStr = `"${query}"`;
+  
+  // 6. Mode Specific Logic
   if (mode === 'username') {
     return `"${query}" ${platformScope} -site:?*`;
   }
@@ -71,55 +76,52 @@ const buildSearchVector = (params: SearchParams): string => {
   if (mode === 'medical-residency') {
     const specialty = medicalContext?.specialty || '';
     const level = medicalContext?.level || 'Residency';
-    return `"${specialty}" "${level}" ${locStr} ${platformScope} (group OR board OR fellowship OR match OR "program director") ${scopeKeywords}`;
+    // Ensure we look for the specialty AND the group keywords
+    return `"${specialty}" "${level}" ${locStr} ${platformScope} (group OR community OR "fellowship chat" OR "residents group") ${scopeKeywords}`;
   }
 
-  // Default: Discovery Mode
-  return `"${query}" ${locStr} ${platformScope} ${scopeKeywords} ${authKeywords}`;
+  // General Search
+  return `${queryStr} ${locStr} ${platformScope} ${scopeKeywords} ${authKeywords}`;
 };
 
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const searchVector = buildSearchVector(params);
   
-  // Construct a context string about connected identities for the AI
-  const identityContext = params.identities.map(id => `${id.platform}: ${id.value}`).join(', ');
-  const authLevel = params.identities.length > 0 ? "AUTHORIZED_DEEP_SCAN" : "PUBLIC_SCAN";
+  const identityContext = params.identities.map(id => `[${id.platform.toUpperCase()} UPLINK: ${id.value}]`).join(' + ');
+  const authLevel = params.identities.length > 0 ? "LEVEL_2_AUTHORIZED (DEEP SCAN)" : "LEVEL_1_PUBLIC";
 
   console.log(`[${authLevel}] VECTOR:`, searchVector);
 
   const systemInstruction = `
-    You are SCOUT OPS v7.5, the ultimate OSINT intelligence engine.
+    You are SCOUT OPS v7.5, a specialized Intelligence Engine focusing on Social Media Groups & Communities.
     
-    CONTEXT:
-    - SCAN LEVEL: ${authLevel}
-    - IDENTITIES: [${identityContext}]
-    - SCOPE: ${params.scope.toUpperCase()}
-    - TARGET: ${params.query}
-    
-    MISSION:
-    Search for valid, accessible links matching the criteria.
-    If searching for 'documents', look for PDF/Doc links.
-    If searching for 'communities', look for invite links.
-    
-    STRICT RULES:
-    1. ZERO HALLUCINATIONS. Use Grounding data (Google Search) as the primary source of truth.
-    2. If a link comes from the 'Deep Analysis' capability (AI knowledge), mark it with slightly lower confidence unless verified.
-    3. ACCURACY: Filter out broken links or generic landing pages. We want the DIRECT resource (Group Link, PDF Link, Profile Link).
-    4. Categorize results based on the User's Scope (e.g., if they asked for 'documents', label the Type as 'Document').
+    === MISSION DIRECTIVES ===
+    1. **TARGET**: Find ACTIVE Group Links (Telegram, WhatsApp, Discord, Facebook Groups) and Community Profiles.
+    2. **EXCLUSION**: Do NOT return generic documents (PDFs, DOCs) or articles unless they contain a DIRECT Invite Link.
+    3. **MEDICAL EXPANSION**: If the query is a medical specialty (e.g., 'pediatric'), YOU MUST AUTOMATICALLY SEARCH FOR ITS SUB-SPECIALTIES (e.g., 'neonatology', 'pediatric oncology', 'PICU', 'child health') within the target platforms.
+    4. **SOURCE IDENTIFICATION**: You MUST identify WHO shared the link. Was it an 'Official Account', a 'Community Admin', a 'University Page', or a 'User Message'?
+    5. **GEO-FENCING**: Strictly apply the location filters: ${params.location?.country || 'Global'} ${params.location?.city || ''}.
 
-    OUTPUT JSON:
+    === INPUT PARAMETERS ===
+    QUERY: "${params.query}"
+    MODE: ${params.mode}
+    LOCATION: ${JSON.stringify(params.location)}
+
+    === OUTPUT FORMAT (JSON) ===
     {
-      "analysis": "A professional intelligence briefing summarizing what was found, key locations, and data density.",
+      "analysis": "Briefing on the density of groups found, specific sub-specialties identified, and the primary source of these links.",
       "links": [
         {
-          "title": "Resource Title",
-          "url": "URL",
-          "platform": "Platform Source",
-          "type": "Group|Channel|Profile|Document|Event",
-          "description": "Brief description of contents.",
+          "title": "Group Name or Page Title",
+          "url": "Direct URL to Group/Profile",
+          "platform": "Platform Name",
+          "type": "Group|Channel|Community|Event",
+          "sharedBy": "Exact name of the Account/Community that shared this link",
+          "description": "Content summary.",
           "location": "Inferred Location",
-          "confidence": 85-100
+          "confidence": 80-100,
+          "status": "Active"
         }
       ]
     }
@@ -128,7 +130,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `[EXECUTE_OSINT_QUERY] Pattern: ${searchVector}`,
+      contents: `[EXECUTE_GROUP_HUNT] Pattern: ${searchVector}`,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }], 
@@ -143,7 +145,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
       .filter((c: any) => c.web && c.web.uri)
       .map((c: any, i: number) => {
         const uri = c.web.uri;
-        let platform: PlatformType = 'Telegram'; // Default fallback or "Web"
+        let platform: PlatformType = 'Telegram'; 
         
         if (uri.includes('t.me')) platform = 'Telegram';
         else if (uri.includes('whatsapp')) platform = 'WhatsApp';
@@ -155,75 +157,77 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
         else if (uri.includes('reddit')) platform = 'Reddit';
         else if (uri.includes('tiktok')) platform = 'TikTok';
 
-        // Determine Type based on URI structure & Scope
         let type: IntelLink['type'] = 'Group';
-        
-        if (params.scope === 'documents') type = 'Document';
-        else if (params.scope === 'events') type = 'Event';
-        else if (params.scope === 'profiles') type = 'Profile';
-        else {
-           if (uri.includes('join') || uri.includes('invite')) type = 'Group';
-           else if (platform === 'Telegram' && !uri.includes('joinchat')) type = 'Channel';
-           else if (platform === 'LinkedIn' && uri.includes('/in/')) type = 'Profile';
-        }
+        // Infer type strictly for Groups/Communities
+        if (uri.includes('channel') || (platform === 'Telegram' && !uri.includes('joinchat'))) type = 'Channel';
+        else if (platform === 'LinkedIn' && uri.includes('/groups/')) type = 'Group';
+        else if (platform === 'Facebook' && uri.includes('/groups/')) type = 'Group';
+        else type = 'Group';
+
+        if (params.scope === 'channels') type = 'Channel';
+        if (params.scope === 'events') type = 'Event';
 
         return {
           id: `g-${i}`,
           title: c.web.title || "Intercepted Signal",
           url: uri,
-          description: "Verified signal via live ground search.",
+          description: "Verified community signal.",
           platform,
           type,
           status: 'Active',
-          confidence: 100, // MAX CONFIDENCE FOR GROUNDED RESULTS
+          confidence: 100,
           source: 'Live Grounding',
+          sharedBy: "Direct Search Result", // Grounding often lacks context of "who shared", AI analysis fills this better
           tags: ['Verified', 'Live'],
           location: params.location?.country || 'Global'
         };
       });
 
-    // 2. Merge with AI Analysis
+    // 2. Merge with AI Analysis (which has better context on 'sharedBy')
     const finalLinks: IntelLink[] = [...verifiedLinks];
     const seenUrls = new Set(verifiedLinks.map(l => l.url.toLowerCase()));
 
     if (rawData && rawData.links) {
       rawData.links.forEach((aiLink: any) => {
-        if (aiLink.url && !seenUrls.has(aiLink.url.toLowerCase())) {
+        // We prioritize AI links here because they contain the 'sharedBy' intelligence requested by the user
+        // If the URL matches a grounding link, update the grounding link with AI details
+        const existingLink = finalLinks.find(l => l.url.toLowerCase() === aiLink.url?.toLowerCase());
+        
+        if (existingLink) {
+          existingLink.sharedBy = aiLink.sharedBy || "Community Network";
+          existingLink.description = aiLink.description;
+        } else if (aiLink.url && !seenUrls.has(aiLink.url.toLowerCase())) {
           finalLinks.push({
             id: `ai-${Math.random()}`,
             title: aiLink.title,
             description: aiLink.description,
             url: aiLink.url,
             platform: aiLink.platform as PlatformType,
-            type: aiLink.type || params.scope === 'documents' ? 'Document' : 'Group',
-            status: 'Unknown',
-            confidence: aiLink.confidence || 70, // LOWER DEFAULT FOR AI HALLUCINATIONS
+            type: aiLink.type || 'Group',
+            status: 'Active',
+            confidence: aiLink.confidence || 80, 
             source: 'Deep Analysis',
-            tags: ['AI_Inferred', authLevel === 'AUTHORIZED_DEEP_SCAN' ? 'Deep_Scan' : 'Public'],
-            location: aiLink.location || 'Global'
+            sharedBy: aiLink.sharedBy || "Aggregated Source",
+            tags: ['AI_Inferred'],
+            location: aiLink.location || params.location?.country || 'Global'
           });
         }
       });
     }
 
-    // 3. Filtering & Thresholding
-    const CONFIDENCE_THRESHOLD = 60;
+    // 3. Filtering
+    const userMinConf = params.filters?.minConfidence || 0;
+    let filteredLinks = finalLinks.filter(l => l.confidence >= userMinConf);
     
-    let filteredLinks = finalLinks.filter(l => l.confidence >= CONFIDENCE_THRESHOLD);
+    filteredLinks = filteredLinks.filter(l => params.platforms.includes(l.platform));
 
-    // Filter by Platform if it's strictly a social search, otherwise allow web results for docs
-    filteredLinks = params.scope === 'documents' 
-      ? filteredLinks 
-      : filteredLinks.filter(l => params.platforms.includes(l.platform));
-
-    // Calculate Stats
     const platformDist: Record<string, number> = {};
     filteredLinks.forEach(l => {
       platformDist[l.platform] = (platformDist[l.platform] || 0) + 1;
     });
 
     return {
-      analysis: rawData?.analysis || "Search complete. Reviewing signal integrity.",
+      analysis: rawData?.analysis || "Group scan complete. Targets identified.",
       links: filteredLinks,
       stats: {
         total: filteredLinks.length,

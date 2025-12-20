@@ -26,7 +26,7 @@ const SEARCH_MODES: { id: SearchMode; label: string; icon: string }[] = [
 
 const SEARCH_SCOPES: { id: SearchScope; label: string; icon: string }[] = [
   { id: 'communities', label: 'Communities', icon: 'fa-solid fa-users' },
-  { id: 'documents', label: 'Documents', icon: 'fa-solid fa-file-contract' },
+  { id: 'channels', label: 'Channels', icon: 'fa-solid fa-bullhorn' },
   { id: 'events', label: 'Events / Intel', icon: 'fa-solid fa-calendar-check' },
   { id: 'profiles', label: 'Profiles', icon: 'fa-solid fa-id-card' },
 ];
@@ -69,13 +69,12 @@ const ConnectModal = ({
       });
       setVerifying(false);
       onClose();
-    }, 2000);
+    }, 1500);
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-300">
       <div className="bg-[#0b0d12] border border-indigo-500/30 rounded-3xl w-full max-w-md p-8 relative overflow-hidden shadow-[0_0_50px_rgba(79,70,229,0.15)]">
-        {/* Decorative HUD Elements */}
         <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-indigo-500/50 rounded-tl-xl m-4"></div>
         <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-indigo-500/50 rounded-br-xl m-4"></div>
         
@@ -128,7 +127,7 @@ const ConnectModal = ({
           <button 
             onClick={handleConnect}
             disabled={verifying || !value}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.02] active:scale-95 text-white py-5 rounded-xl text-xs font-black uppercase tracking-[0.25em] transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(79,70,229,0.3)] disabled:opacity-50 disabled:hover:scale-100"
+            className="w-full bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.02] active:scale-95 text-white py-5 rounded-xl text-xs font-black uppercase tracking-[0.25em] transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(79,70,229,0.3)] disabled:opacity-50"
           >
             {verifying ? (
               <span className="flex items-center gap-3 animate-pulse">
@@ -146,6 +145,26 @@ const ConnectModal = ({
   );
 };
 
+// Collapsible Sidebar Section
+const SidebarSection = ({ title, icon, children, defaultOpen = false }: { title: string; icon: string; children?: React.ReactNode; defaultOpen?: boolean }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-white/5 last:border-0 pb-4 mb-4">
+      <button 
+        onClick={() => setIsOpen(!isOpen)} 
+        className="w-full flex items-center justify-between text-xs font-black text-slate-500 uppercase tracking-widest hover:text-indigo-400 transition-colors mb-4 group"
+      >
+        <span className="flex items-center gap-2"><i className={icon}></i> {title}</span>
+        <i className={`fa-solid fa-chevron-down transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}></i>
+      </button>
+      <div className={`space-y-3 overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const FilterSidebar = ({ 
   platforms, 
   setPlatforms, 
@@ -155,45 +174,85 @@ const FilterSidebar = ({
   setGeo, 
   medical, 
   setMedical,
-  mode 
+  mode,
+  filters,
+  setFilters,
+  isOpen,
+  onClose
 }: any) => {
   const togglePlatform = (p: PlatformType) => {
     if (platforms.includes(p)) setPlatforms(platforms.filter((x: any) => x !== p));
     else setPlatforms([...platforms, p]);
   };
 
+  // Mobile drawer logic
+  const drawerClasses = isOpen 
+    ? "translate-x-0" 
+    : "-translate-x-full lg:translate-x-0";
+
   return (
-    <div className="w-full lg:w-80 bg-[#06070a]/95 border-r border-white/5 p-6 flex flex-col gap-8 h-full overflow-y-auto backdrop-blur-xl relative z-20">
-      {/* Identity Module */}
-      <div className="bg-indigo-950/10 border border-indigo-500/20 rounded-2xl p-5 relative overflow-hidden group hover:border-indigo-500/40 transition-all duration-500">
-        <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-        <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2 mb-4 relative z-10">
-          <i className="fa-solid fa-fingerprint"></i> Identity Uplink
-        </h3>
-        <div className="space-y-3 relative z-10">
-           {identities.length === 0 ? (
-             <div className="p-3 rounded-lg border border-dashed border-slate-700 text-center">
-               <p className="text-[9px] text-slate-500 mb-2 font-mono">NO ACTIVE UPLINKS</p>
-               <p className="text-[8px] text-indigo-400/60 uppercase">Connect to enable deep scan</p>
-             </div>
-           ) : (
-             <div className="flex flex-wrap gap-2">
-                {identities.map((id: ConnectedIdentity, idx: number) => (
-                  <div key={idx} className="pl-2 pr-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-[9px] text-emerald-400 flex items-center gap-2 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                     {id.platform}
-                  </div>
-                ))}
-             </div>
-           )}
-        </div>
+    <div className={`fixed inset-y-0 left-0 z-50 w-80 bg-[#06070a]/95 border-r border-white/5 p-6 flex flex-col h-full overflow-y-auto backdrop-blur-xl transition-transform duration-300 lg:relative ${drawerClasses} custom-scrollbar`}>
+      
+      {/* Mobile Close Button */}
+      <div className="lg:hidden flex justify-end mb-4">
+        <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <i className="fa-solid fa-xmark text-xl"></i>
+        </button>
       </div>
 
+      {/* Search Analysis Filters */}
+      <SidebarSection title="Signal Filters" icon="fa-solid fa-filter" defaultOpen={true}>
+         <div className="space-y-4">
+            <div>
+              <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase mb-2">
+                 <span>Min Confidence</span>
+                 <span className="text-emerald-400">{filters.minConfidence}%</span>
+              </div>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                value={filters.minConfidence}
+                onChange={(e) => setFilters({...filters, minConfidence: Number(e.target.value)})}
+                className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+               <span className="text-[10px] font-bold text-slate-300">Active Signals Only</span>
+               <button 
+                onClick={() => setFilters({...filters, onlyActive: !filters.onlyActive})}
+                className={`w-8 h-4 rounded-full relative transition-colors ${filters.onlyActive ? 'bg-emerald-500' : 'bg-slate-700'}`}
+               >
+                 <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${filters.onlyActive ? 'left-4.5' : 'left-0.5'}`}></div>
+               </button>
+            </div>
+         </div>
+      </SidebarSection>
+
+      {/* Identity Module */}
+      <SidebarSection title="Identity Uplink" icon="fa-solid fa-fingerprint" defaultOpen={true}>
+        <div className="bg-indigo-950/10 border border-indigo-500/20 rounded-xl p-4 relative group">
+          <div className="space-y-3">
+             {identities.length === 0 ? (
+               <div className="p-3 rounded-lg border border-dashed border-slate-700 text-center">
+                 <p className="text-[9px] text-slate-500 mb-2 font-mono">NO ACTIVE UPLINKS</p>
+               </div>
+             ) : (
+               <div className="flex flex-wrap gap-2">
+                  {identities.map((id: ConnectedIdentity, idx: number) => (
+                    <div key={idx} className="pl-2 pr-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-[9px] text-emerald-400 flex items-center gap-2">
+                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                       {id.platform}
+                    </div>
+                  ))}
+               </div>
+             )}
+          </div>
+        </div>
+      </SidebarSection>
+
       {/* Platform Filters */}
-      <div className="space-y-5">
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-          <i className="fa-solid fa-network-wired"></i> Network Targets
-        </h3>
+      <SidebarSection title="Network Targets" icon="fa-solid fa-network-wired" defaultOpen={true}>
         <div className="space-y-2">
           {ALL_PLATFORMS.map(p => {
             const isConnected = identities.some((i: any) => i.platform === p.id);
@@ -203,16 +262,15 @@ const FilterSidebar = ({
               <div key={p.id} className="flex gap-2 group">
                 <button
                   onClick={() => togglePlatform(p.id)}
-                  className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border text-[10px] font-bold uppercase transition-all duration-300 hover:scale-[1.02] active:scale-95 ${
+                  className={`flex-1 flex items-center gap-3 px-3 py-2.5 rounded-lg border text-[10px] font-bold uppercase transition-all duration-300 hover:scale-[1.02] active:scale-95 ${
                     isSelected 
-                      ? 'bg-white/10 border-white/20 text-white shadow-lg' 
+                      ? 'bg-white/10 border-white/20 text-white shadow' 
                       : 'bg-transparent border-white/5 text-slate-600 hover:border-white/10 hover:text-slate-400'
                   }`}
                 >
-                  <i className={`${p.icon} text-sm transition-transform group-hover:scale-110 ${isSelected ? p.color : ''}`}></i>
+                  <i className={`${p.icon} text-sm ${isSelected ? p.color : ''}`}></i>
                   {p.id}
                   
-                  {/* Visual Connection Indicator */}
                   <div className="ml-auto flex items-center gap-1.5">
                     <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)] animate-pulse' : 'bg-red-500/30'}`}></div>
                   </div>
@@ -220,26 +278,22 @@ const FilterSidebar = ({
                 
                 <button 
                   onClick={() => onOpenConnect(p.id)}
-                  className={`w-10 flex items-center justify-center rounded-xl border transition-all hover:scale-110 active:scale-90 ${
+                  className={`w-8 flex items-center justify-center rounded-lg border transition-all hover:scale-105 ${
                     isConnected 
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]' 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
                       : 'bg-transparent border-white/5 text-slate-700 hover:text-indigo-400 hover:border-indigo-500/30'
                   }`}
-                  title={isConnected ? "Uplink Active" : "Initialize Uplink"}
                 >
-                  <i className={`fa-solid ${isConnected ? 'fa-link' : 'fa-plug'}`}></i>
+                  <i className={`fa-solid ${isConnected ? 'fa-link' : 'fa-plug'} text-xs`}></i>
                 </button>
               </div>
             );
           })}
         </div>
-      </div>
+      </SidebarSection>
 
       {/* Geo Filters */}
-      <div className="space-y-5 pt-6 border-t border-white/5">
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-          <i className="fa-solid fa-earth-americas"></i> Geo-Fencing
-        </h3>
+      <SidebarSection title="Geo-Fencing" icon="fa-solid fa-earth-americas">
         <div className="space-y-3">
           {['Country', 'City', 'Institution'].map((placeholder, i) => (
             <div key={placeholder} className="relative group">
@@ -254,40 +308,40 @@ const FilterSidebar = ({
                    else if (i === 1) setGeo({...geo, city: val});
                    else setGeo({...geo, institution: val});
                  }}
-                 className="w-full bg-black/40 border border-white/10 focus:border-indigo-500/50 rounded-lg pl-8 pr-4 py-2.5 text-[10px] font-bold text-white outline-none transition-all placeholder:text-slate-700 focus:shadow-[0_0_15px_rgba(79,70,229,0.15)]"
+                 className="w-full bg-black/40 border border-white/10 focus:border-indigo-500/50 rounded-lg pl-8 pr-4 py-2 text-[10px] font-bold text-white outline-none transition-all placeholder:text-slate-700"
                />
             </div>
           ))}
         </div>
-      </div>
+      </SidebarSection>
 
       {/* Medical Filters */}
       {mode === 'medical-residency' && (
-        <div className="space-y-5 pt-6 border-t border-white/5 animate-in slide-in-from-left-4 fade-in">
-          <h3 className="text-xs font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
-            <i className="fa-solid fa-staff-snake"></i> Medical Ops
-          </h3>
+        <SidebarSection title="Medical Ops" icon="fa-solid fa-staff-snake" defaultOpen={true}>
           <div className="space-y-3">
              <input 
               type="text" 
-              placeholder="Target Specialty..."
+              placeholder="Specialty (e.g., Pediatric)..."
               value={medical.specialty || ''}
               onChange={e => setMedical({ ...medical, specialty: e.target.value })}
-              className="w-full bg-emerald-900/10 border border-emerald-500/20 rounded-lg px-4 py-3 text-[10px] font-bold text-emerald-100 focus:border-emerald-500 outline-none transition-colors"
+              className="w-full bg-emerald-900/10 border border-emerald-500/20 rounded-lg px-4 py-2 text-[10px] font-bold text-emerald-100 focus:border-emerald-500 outline-none"
             />
             <select 
               value={medical.level || 'Residency'}
               onChange={e => setMedical({ ...medical, level: e.target.value })}
-              className="w-full bg-emerald-900/10 border border-emerald-500/20 rounded-lg px-4 py-3 text-[10px] font-bold text-emerald-100 focus:border-emerald-500 outline-none"
+              className="w-full bg-emerald-900/10 border border-emerald-500/20 rounded-lg px-4 py-2 text-[10px] font-bold text-emerald-100 focus:border-emerald-500 outline-none"
             >
-              <option value="Residency">Residency Program</option>
+              <option value="Residency">Residency</option>
               <option value="Fellowship">Fellowship</option>
               <option value="Board">Board Certification</option>
               <option value="Internship">Internship</option>
               <option value="Research">Research Group</option>
             </select>
+            <div className="text-[9px] text-emerald-600/60 px-2 italic">
+               *System will auto-expand to sub-specialties (e.g. Neo-Natal, PICU)
+            </div>
           </div>
-        </div>
+        </SidebarSection>
       )}
     </div>
   );
@@ -305,30 +359,32 @@ const App: React.FC = () => {
   const [geo, setGeo] = useState<SearchParams['location']>({});
   const [medical, setMedical] = useState<SearchParams['medicalContext']>({});
   
-  // Parallax State
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  // New Filter State
+  const [filters, setFilters] = useState({ minConfidence: 60, onlyActive: false });
 
   // UI State
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [platformToConnect, setPlatformToConnect] = useState<PlatformType | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SearchResult | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const bgRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll logs
   useEffect(() => {
     if (terminalRef.current) terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
   }, [logs]);
 
-  // Parallax Effect
+  // Optimized Parallax Effect using Refs
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
-      setOffset({
-        x: (e.clientX / window.innerWidth) * 20 - 10,
-        y: (e.clientY / window.innerHeight) * 20 - 10
-      });
+      if (!bgRef.current) return;
+      const x = (e.clientX / window.innerWidth) * 20 - 10;
+      const y = (e.clientY / window.innerHeight) * 20 - 10;
+      bgRef.current.style.transform = `translate(${x * -1}px, ${y * -1}px) scale(1.05)`;
     };
     window.addEventListener('mousemove', handleMove);
     return () => window.removeEventListener('mousemove', handleMove);
@@ -350,6 +406,65 @@ const App: React.FC = () => {
     log(`AUTHORIZATION LEVEL INCREASED.`);
   };
 
+  const handleExport = () => {
+    if (!result) return;
+    
+    // Generate Text Report
+    const reportDate = new Date().toISOString();
+    const divider = "=".repeat(60);
+    const subDivider = "-".repeat(60);
+    
+    let report = `SCOUT OPS v7.5 // MISSION INTELLIGENCE REPORT\n`;
+    report += `CLASSIFICATION: RESTRICTED\n`;
+    report += `DATE: ${reportDate}\n`;
+    report += `${divider}\n\n`;
+    
+    report += `[MISSION PARAMETERS]\n`;
+    report += `QUERY: ${query || (medical.specialty ? medical.specialty + ' ' + medical.level : 'N/A')}\n`;
+    report += `MODE: ${mode.toUpperCase()}\n`;
+    report += `SCOPE: ${scope.toUpperCase()}\n`;
+    report += `GEO: ${[geo.country, geo.city, geo.institution].filter(Boolean).join(', ') || 'GLOBAL'}\n\n`;
+    
+    report += `[ACTIVE UPLINKS / IDENTITY VECTORS]\n`;
+    if(identities.length > 0) {
+      identities.forEach(id => {
+        report += `+ ${id.platform.toUpperCase()}: ${id.value} (VERIFIED)\n`;
+      });
+    } else {
+      report += `(NO AUTHENTICATED UPLINKS - PUBLIC SCAN)\n`;
+    }
+    report += `\n${divider}\n\n`;
+    
+    report += `[INTELLIGENCE ANALYSIS]\n`;
+    report += `${result.analysis}\n\n`;
+    report += `${divider}\n\n`;
+    
+    report += `[IDENTIFIED SIGNALS (${result.links.length})]\n`;
+    report += `${subDivider}\n`;
+    
+    result.links.forEach((link, i) => {
+       report += `\n#${i+1} [${link.confidence}%] ${link.title}\n`;
+       report += `URL: ${link.url}\n`;
+       report += `PLATFORM: ${link.platform} | TYPE: ${link.type}\n`;
+       report += `SOURCE: ${link.sharedBy || 'Unknown'}\n`;
+       report += `STATUS: ${link.status}\n`;
+       report += `INFO: ${link.description}\n`;
+    });
+    
+    report += `\n${divider}\n`;
+    report += `END OF REPORT\n`;
+
+    const blob = new Blob([report], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `MISSION_REPORT_${new Date().getTime()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    log("MISSION REPORT GENERATED & EXPORTED.");
+  };
+
   const handleSearch = async () => {
     if (!query.trim() && mode !== 'medical-residency') return;
     if (mode === 'medical-residency' && !medical?.specialty) {
@@ -359,9 +474,7 @@ const App: React.FC = () => {
 
     setLoading(true);
     setResult(null);
-    const deepScan = identities.length > 0;
     log(`INITIALIZING SCAN: ${mode.toUpperCase()} // SCOPE: ${scope.toUpperCase()}`);
-    if (deepScan) log("DEEP SCAN PROTOCOLS: ACTIVE");
 
     try {
       const data = await searchGlobalIntel({
@@ -371,7 +484,8 @@ const App: React.FC = () => {
         platforms,
         identities,
         location: geo,
-        medicalContext: medical
+        medicalContext: medical,
+        filters
       });
 
       setResult(data);
@@ -386,10 +500,11 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#010204] text-slate-200 font-['Cairo'] overflow-hidden relative" dir="ltr">
       
-      {/* Parallax Background Layer */}
+      {/* Parallax Background Layer (Performance Optimized) */}
       <div 
+        ref={bgRef}
         className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(30,27,75,0.4)_0%,transparent_60%)] z-0 pointer-events-none transition-transform duration-100 ease-out will-change-transform"
-        style={{ transform: `translate(${offset.x * -1}px, ${offset.y * -1}px) scale(1.05)` }}
+        style={{ transform: `scale(1.05)` }}
       />
 
       <ScanOverlay />
@@ -405,6 +520,10 @@ const App: React.FC = () => {
         medical={medical}
         setMedical={setMedical}
         mode={mode}
+        filters={filters}
+        setFilters={setFilters}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
       {/* 2. Main Content Area */}
@@ -413,6 +532,14 @@ const App: React.FC = () => {
         {/* Header */}
         <header className="h-20 border-b border-white/5 flex items-center justify-between px-8 bg-black/20 backdrop-blur-sm">
           <div className="flex items-center gap-4">
+             {/* Mobile Sidebar Toggle */}
+             <button 
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden text-slate-400 hover:text-white"
+             >
+                <i className="fa-solid fa-bars text-xl"></i>
+             </button>
+
              <div className="relative group">
                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.4)] transition-all duration-500 group-hover:rotate-180">
                  <i className="fa-solid fa-radar text-white text-lg animate-spin-slow"></i>
@@ -423,11 +550,10 @@ const App: React.FC = () => {
                <h1 className="text-xl font-black tracking-tighter italic leading-none text-white flex items-center gap-2">
                  SCOUT<span className="text-indigo-500">OPS</span> <span className="px-1.5 py-0.5 rounded bg-white/10 text-[9px] not-italic font-mono text-slate-400">v7.5 ULT</span>
                </h1>
-               <div className="text-[9px] text-slate-500 font-mono tracking-widest mt-0.5">INTELLIGENCE DASHBOARD</div>
              </div>
           </div>
 
-          <div className="flex bg-black/40 border border-white/5 rounded-xl p-1.5 gap-1">
+          <div className="hidden md:flex bg-black/40 border border-white/5 rounded-xl p-1.5 gap-1">
             {SEARCH_MODES.map(m => (
               <button
                 key={m.id}
@@ -450,7 +576,7 @@ const App: React.FC = () => {
           <div className="max-w-5xl mx-auto w-full space-y-4">
             
             {/* Scope Selector */}
-            <div className="flex justify-center gap-4 mb-2">
+            <div className="flex flex-wrap justify-center gap-4 mb-2">
               {SEARCH_SCOPES.map(s => (
                 <button
                   key={s.id}
@@ -483,16 +609,24 @@ const App: React.FC = () => {
                     mode === 'medical-residency' ? "Specify Medical Context..." :
                     "Enter keywords to execute global scan..."
                   }
-                  className="flex-1 bg-transparent py-4 text-base font-bold text-white placeholder:text-slate-700 focus:outline-none font-mono tracking-wide"
+                  className="flex-1 bg-transparent py-4 text-base font-bold text-white placeholder:text-slate-700 focus:outline-none font-mono tracking-wide min-w-0"
                  />
                  <button 
                   onClick={handleSearch}
                   disabled={loading}
-                  className="bg-white text-black hover:bg-indigo-500 hover:text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:scale-105 active:scale-95"
+                  className="hidden sm:block bg-white text-black hover:bg-indigo-500 hover:text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:scale-105 active:scale-95"
                  >
                    {loading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : 'EXECUTE'}
                  </button>
                </div>
+               {/* Mobile Execute Button */}
+               <button 
+                  onClick={handleSearch}
+                  disabled={loading}
+                  className="sm:hidden mt-3 w-full bg-indigo-600 text-white hover:bg-indigo-500 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)]"
+               >
+                  {loading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : 'EXECUTE SCAN'}
+               </button>
             </div>
           </div>
         </div>
@@ -505,19 +639,28 @@ const App: React.FC = () => {
                {/* Analysis Card */}
                <div className="bg-gradient-to-r from-indigo-950/40 to-black border border-indigo-500/20 rounded-3xl p-8 relative overflow-hidden shadow-2xl group hover:border-indigo-500/40 transition-colors">
                  <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 transition-transform duration-700 group-hover:rotate-45">
-                   <i className="fa-solid fa-file-contract text-8xl text-indigo-500"></i>
+                   <i className="fa-solid fa-users-viewfinder text-8xl text-indigo-500"></i>
                  </div>
-                 <div className="flex items-center gap-3 mb-4">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                    <h2 className="text-xs font-black text-indigo-300 uppercase tracking-[0.2em]">Mission Report</h2>
+                 <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                        <h2 className="text-xs font-black text-indigo-300 uppercase tracking-[0.2em]">Mission Report</h2>
+                    </div>
+                    
+                    {/* Export Button */}
+                    <button 
+                        onClick={handleExport}
+                        className="text-[9px] font-bold uppercase tracking-widest bg-white/5 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2"
+                    >
+                        <i className="fa-solid fa-download"></i> EXPORT DATA
+                    </button>
                  </div>
                  <p className="text-sm text-indigo-50 leading-loose max-w-4xl font-medium">{result.analysis}</p>
                  
-                 <div className="flex gap-4 mt-8">
-                   {/* Stat Pills */}
+                 <div className="flex flex-wrap gap-4 mt-8">
                    {[
                      { l: 'Total Intel', v: result.stats.total, c: 'text-white' },
-                     { l: 'Verified', v: '98%', c: 'text-emerald-400' },
+                     { l: 'Verified', v: `${Math.round((result.links.filter(l => l.confidence > 85).length / result.links.length) * 100) || 0}%`, c: 'text-emerald-400' },
                      { l: 'Scan Depth', v: identities.length > 0 ? 'Lvl 2 (Deep)' : 'Lvl 1 (Public)', c: identities.length > 0 ? 'text-indigo-400' : 'text-slate-400' }
                    ].map((s, i) => (
                      <div key={i} className="px-5 py-2 bg-black/40 rounded-lg border border-indigo-500/20 backdrop-blur-md">
@@ -532,14 +675,13 @@ const App: React.FC = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                  {result.links.map((link, idx) => {
                    const platformInfo = ALL_PLATFORMS.find(p => p.id === link.platform);
-                   const isDoc = link.type === 'Document';
                    
                    return (
-                     <div key={link.id} className="bg-[#0b0d12] border border-white/5 hover:border-indigo-500/40 rounded-2xl p-6 transition-all duration-300 group relative hover:-translate-y-2 hover:shadow-[0_10px_40px_-10px_rgba(79,70,229,0.2)]">
+                     <div key={link.id} className="bg-[#0b0d12] border border-white/5 hover:border-indigo-500/40 rounded-2xl p-6 transition-all duration-300 group relative hover:-translate-y-2 hover:shadow-[0_10px_40px_-10px_rgba(79,70,229,0.2)] flex flex-col">
                        <div className="flex justify-between items-start mb-4">
                          <div className="flex items-center gap-3">
                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-black border border-white/10 text-lg shadow-inner ${platformInfo?.color || 'text-white'} group-hover:scale-110 transition-transform`}>
-                             <i className={isDoc ? 'fa-solid fa-file-pdf' : platformInfo?.icon || 'fa-solid fa-globe'}></i>
+                             <i className={platformInfo?.icon || 'fa-solid fa-globe'}></i>
                            </div>
                            <div>
                              <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">{link.type}</div>
@@ -553,22 +695,46 @@ const App: React.FC = () => {
                          </div>
                        </div>
                        
-                       <h3 className="text-sm font-bold text-white mb-2 line-clamp-2 leading-tight group-hover:text-indigo-300 transition-colors h-10">
+                       <h3 className="text-sm font-bold text-white mb-2 line-clamp-2 leading-tight group-hover:text-indigo-300 transition-colors">
                          {link.title}
                        </h3>
-                       <p className="text-[10px] text-slate-400 line-clamp-2 mb-6 leading-relaxed font-mono h-8">
+                       <p className="text-[10px] text-slate-400 line-clamp-2 mb-2 leading-relaxed font-mono">
                          {link.description}
                        </p>
+
+                        {/* Shared By Section */}
+                       <div className="bg-white/5 rounded-lg p-2 mb-4 border border-white/5">
+                          <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1">
+                            <i className="fa-solid fa-share-nodes"></i> Shared By
+                          </div>
+                          <div className="text-[10px] text-indigo-200 truncate font-medium">
+                            {link.sharedBy || "Detected Signal"}
+                          </div>
+                       </div>
+
+                       {/* Visual Confidence Bar */}
+                       <div className="mb-4">
+                          <div className="flex justify-between text-[8px] text-slate-500 mb-1 font-mono">
+                             <span>SIGNAL STRENGTH</span>
+                             <span>{link.confidence}%</span>
+                          </div>
+                          <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                             <div className={`h-full rounded-full ${link.confidence > 90 ? 'bg-emerald-500' : link.confidence > 70 ? 'bg-indigo-500' : 'bg-orange-500'}`} style={{ width: `${link.confidence}%` }}></div>
+                          </div>
+                       </div>
 
                        <div className="flex gap-2 mt-auto">
                          <button 
                           onClick={() => window.open(link.url, '_blank')}
                           className="flex-1 bg-white/5 hover:bg-indigo-600 text-slate-300 hover:text-white py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 hover:shadow-lg active:scale-95"
                          >
-                           {isDoc ? 'Download' : 'Access'} <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                           Access Uplink <i className="fa-solid fa-arrow-up-right-from-square"></i>
                          </button>
                          <button 
-                          onClick={() => navigator.clipboard.writeText(link.url)}
+                          onClick={() => {
+                            navigator.clipboard.writeText(link.url);
+                            log("URL COPIED TO CLIPBOARD");
+                          }}
                           className="w-10 bg-black border border-white/10 hover:border-white/30 text-slate-500 hover:text-white rounded-lg transition-all flex items-center justify-center active:scale-95"
                          >
                            <i className="fa-regular fa-copy text-xs"></i>

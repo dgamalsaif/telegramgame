@@ -20,7 +20,7 @@ export type PlatformType =
   | 'Signal';
 
 export type SearchMode = 'discovery' | 'username' | 'phone' | 'medical-residency';
-export type SearchScope = 'communities' | 'documents' | 'events' | 'profiles';
+export type SearchScope = 'communities' | 'channels' | 'events' | 'profiles';
 
 export interface ConnectedIdentity {
   platform: PlatformType;
@@ -35,12 +35,13 @@ export interface IntelLink {
   description: string;
   url: string;
   platform: PlatformType;
-  type: 'Group' | 'Channel' | 'Profile' | 'Bot' | 'Document' | 'Event';
+  type: 'Group' | 'Channel' | 'Profile' | 'Bot' | 'Event' | 'Community';
   status: 'Active' | 'Unknown' | 'Revoked';
   members?: string;
   location?: string;
   confidence: number;
   source: string;
+  sharedBy?: string; // Who shared/sent this link
   tags: string[];
 }
 
@@ -57,7 +58,7 @@ export interface SearchResult {
 export interface SearchParams {
   query: string;
   mode: SearchMode;
-  scope: SearchScope; // New: Defines WHAT we are looking for (Chats vs Files vs Events)
+  scope: SearchScope; 
   platforms: PlatformType[];
   identities: ConnectedIdentity[];
   location?: {
@@ -68,5 +69,9 @@ export interface SearchParams {
   medicalContext?: {
     specialty?: string;
     level?: string;
+  };
+  filters?: {
+    minConfidence: number;
+    onlyActive: boolean;
   };
 }
