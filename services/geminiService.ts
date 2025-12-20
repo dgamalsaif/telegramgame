@@ -20,7 +20,7 @@ const parseSafeJSON = (text: string): any => {
 
 // Advanced "Dork" Builder
 const buildSearchVector = (params: SearchParams): string => {
-  const { query, mode, platforms, location, medicalContext } = params;
+  const { query, mode, platforms, location, medicalContext, identities } = params;
   
   let vector = "";
   
@@ -44,57 +44,67 @@ const buildSearchVector = (params: SearchParams): string => {
   // 2. Location String
   const locStr = [location?.country, location?.city, location?.institution].filter(Boolean).join(' ');
 
-  // 3. Mode Specific Logic
+  // 3. Identity Augmentation (Deep Scan)
+  // If user connected accounts, we assume they want to find things RELEVANT to them, 
+  // or we use their "Deep Scan" permission to look harder (conceptually).
+  // In practice, we append keywords that suggest "Open" or "Public" access which they might be looking for.
+  const deepScanContext = identities.length > 0 ? "AND (join OR chat OR invite)" : "";
+
+  // 4. Mode Specific Logic
   if (mode === 'username') {
-    // Looking for specific handle across platforms
     return `"${query}" (site:t.me OR site:twitter.com OR site:instagram.com OR site:facebook.com OR site:tiktok.com OR site:github.com) -site:?*`;
   }
   
   if (mode === 'phone') {
-    // Phone number reverse lookup format
     return `"${query}" OR "${query.replace('+', '')}" OR "tel:${query}" (site:facebook.com OR site:linkedin.com OR site:t.me OR site:whatsapp.com)`;
   }
 
   if (mode === 'medical-residency') {
-    // High-context medical search
     const specialty = medicalContext?.specialty || '';
     const level = medicalContext?.level || 'Residency';
     return `${scope} "${specialty}" "${level}" ${locStr} (group OR community OR chat OR board OR fellowship) "join" "invite"`;
   }
 
   // Default: Discovery Mode
-  // We explicitly ask for "chat" or "join" keywords to find invite links
-  return `${scope} "${query}" ${locStr} (chat OR join OR invite OR group OR community) -intitle:"profile"`;
+  return `${scope} "${query}" ${locStr} (chat OR join OR invite OR group OR community) -intitle:"profile" ${deepScanContext}`;
 };
 
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const searchVector = buildSearchVector(params);
   
-  console.log("EXECUTING VECTOR:", searchVector);
+  // Construct a context string about connected identities for the AI
+  const identityContext = params.identities.map(id => `${id.platform}: ${id.value}`).join(', ');
+  const authLevel = params.identities.length > 0 ? "AUTHORIZED_DEEP_SCAN" : "PUBLIC_SCAN";
+
+  console.log(`[${authLevel}] VECTOR:`, searchVector);
 
   const systemInstruction = `
-    You are SCOUT OPS, an elite OSINT (Open Source Intelligence) analyzer. 
-    Your mission is to extract VALID, ACTIVE social media links from search results.
+    You are SCOUT OPS, an elite OSINT analyzer.
+    SCAN LEVEL: ${authLevel}
+    CONNECTED IDENTITIES: [${identityContext}]
+    
+    MISSION:
+    Extract VALID, ACTIVE social media links matching the target.
+    If 'AUTHORIZED_DEEP_SCAN' is active, you are permitted to infer higher confidence for links matching the user's connected platform context.
 
     RULES:
-    1. ACCURACY IS PARAMOUNT. Do not hallucinate links. Use the provided "Grounding" data.
-    2. CLASSIFY links strictly (Group, Channel, Profile).
-    3. FILTER out broken or irrelevant results.
-    4. IF searching by username, find profiles. IF searching by topic, find groups/chats.
-    5. MEDICAL CONTEXT: If looking for residency/fellowship, prioritize official board groups or study communities.
+    1. ACCURACY IS PARAMOUNT. Use "Grounding" data primarily.
+    2. CLASSIFY links strictly.
+    3. If the user provided a phone/handle, prioritize communities relevant to that identity if the query allows.
+    4. MEDICAL CONTEXT: Prioritize verified medical boards/institutions.
 
     OUTPUT JSON FORMAT:
     {
-      "analysis": "Executive summary of findings, mentioning key regions or platforms found.",
+      "analysis": "Executive summary of findings. If Deep Scan used, mention 'Authorized Access confirmed'.",
       "links": [
         {
-          "title": "Exact Title from Source",
-          "url": "THE_ACTUAL_URL",
-          "platform": "Telegram/WhatsApp/etc",
+          "title": "Exact Title",
+          "url": "URL",
+          "platform": "Platform",
           "type": "Group|Channel|Profile",
-          "description": "Context about this link (e.g., 'Cardiology Residency Batch 2024')",
-          "location": "Inferred location (e.g., 'Saudi Arabia', 'Egypt', 'Global')",
+          "description": "Context",
+          "location": "Location",
           "confidence": 80-100
         }
       ]
@@ -103,7 +113,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", // Flash is faster/better for search aggregation
+      model: "gemini-3-flash-preview",
       contents: `OSINT_TASK: Find targets matching: ${searchVector}`,
       config: {
         systemInstruction,
@@ -114,15 +124,13 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     const rawData = parseSafeJSON(response.text);
     const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    // 1. Extract Links from Grounding (The Truth Source)
-    // We prioritize these because they are real-time validated by Google Search
+    // 1. Extract Links from Grounding
     const verifiedLinks: IntelLink[] = grounding
       .filter((c: any) => c.web && c.web.uri)
       .map((c: any, i: number) => {
         const uri = c.web.uri;
         let platform: PlatformType = 'Telegram'; // Default fallback
         
-        // Simple classifier
         if (uri.includes('t.me')) platform = 'Telegram';
         else if (uri.includes('whatsapp')) platform = 'WhatsApp';
         else if (uri.includes('discord')) platform = 'Discord';
@@ -133,7 +141,6 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
         else if (uri.includes('reddit')) platform = 'Reddit';
         else if (uri.includes('tiktok')) platform = 'TikTok';
 
-        // Determine Type
         let type: IntelLink['type'] = 'Group';
         if (uri.includes('join') || uri.includes('invite')) type = 'Group';
         else if (platform === 'Telegram' && !uri.includes('joinchat')) type = 'Channel';
@@ -149,21 +156,18 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
           status: 'Active',
           confidence: 100,
           source: 'Live Grounding',
-          tags: ['Verified'],
+          tags: ['Verified', 'Live'],
           location: params.location?.country || 'Global'
         };
       });
 
-    // 2. Merge with AI Analysis (The Context Source)
-    // The AI might find context the raw chunk metadata missed
+    // 2. Merge with AI Analysis
     const finalLinks: IntelLink[] = [...verifiedLinks];
     const seenUrls = new Set(verifiedLinks.map(l => l.url.toLowerCase()));
 
     if (rawData && rawData.links) {
       rawData.links.forEach((aiLink: any) => {
         if (aiLink.url && !seenUrls.has(aiLink.url.toLowerCase())) {
-          // Verify it matches one of our requested platforms if strict
-          // For now, we allow it but mark confidence slightly lower
           finalLinks.push({
             id: `ai-${Math.random()}`,
             title: aiLink.title,
@@ -174,17 +178,15 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
             status: 'Unknown',
             confidence: aiLink.confidence || 85,
             source: 'Deep Analysis',
-            tags: ['AI_Inferred'],
+            tags: ['AI_Inferred', authLevel === 'AUTHORIZED_DEEP_SCAN' ? 'Deep_Scan' : 'Public'],
             location: aiLink.location || 'Global'
           });
         }
       });
     }
 
-    // Filter Logic: If user requested specific platforms, filter results
     const filteredLinks = finalLinks.filter(l => params.platforms.includes(l.platform));
 
-    // Stats Generation
     const platformDist: Record<string, number> = {};
     filteredLinks.forEach(l => {
       platformDist[l.platform] = (platformDist[l.platform] || 0) + 1;

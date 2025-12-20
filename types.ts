@@ -21,6 +21,13 @@ export type PlatformType =
 
 export type SearchMode = 'discovery' | 'username' | 'phone' | 'medical-residency';
 
+export interface ConnectedIdentity {
+  platform: PlatformType;
+  type: 'phone' | 'email' | 'handle';
+  value: string;
+  verifiedAt: string;
+}
+
 export interface IntelLink {
   id: string;
   title: string;
@@ -50,13 +57,14 @@ export interface SearchParams {
   query: string;
   mode: SearchMode;
   platforms: PlatformType[];
+  identities: ConnectedIdentity[]; // New: List of connected user accounts
   location?: {
     country?: string;
     city?: string;
-    institution?: string; // Hospital or University
+    institution?: string; 
   };
   medicalContext?: {
-    specialty?: string; // e.g., Cardiology, Surgery
-    level?: string; // e.g., Board, Residency, Fellowship
+    specialty?: string;
+    level?: string;
   };
 }
