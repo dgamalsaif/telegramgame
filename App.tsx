@@ -81,7 +81,7 @@ const App: React.FC = () => {
       addLog(`Mode: ${searchType.toUpperCase()}`);
       addLog(`Target: ${finalQuery || 'Grid Search'}`);
       if (selectedPlatforms.length > 0) addLog(`Target Grids: ${selectedPlatforms.join(', ')}`);
-      else addLog(`Target Grids: GLOBAL_ALL`);
+      else addLog(`Target Grids: GLOBAL_ALL (Full Spectrum)`);
 
       const data = await searchGlobalIntel({
         query: finalQuery,
@@ -111,8 +111,22 @@ const App: React.FC = () => {
       });
 
     } catch (err: any) {
-      setError("فشل الاتصال بالشبكة الاستخباراتية. يرجى المحاولة لاحقاً.");
-      addLog("CRITICAL ERROR: Matrix Synchronization Lost.");
+      console.error(err);
+      let errorMsg = "فشل الاتصال بالشبكة الاستخباراتية. يرجى المحاولة لاحقاً.";
+      
+      if (err.message && err.message.includes("API_KEY")) {
+        errorMsg = "DEPLOYMENT ERROR: API_KEY is missing.";
+        addLog("FATAL: API_KEY environment variable not found.");
+      } else if (err.message && err.message.includes("429")) {
+         errorMsg = "RATE LIMIT EXCEEDED: Too many requests.";
+         addLog("FATAL: Neural Link Overload (429).");
+      } else if (err.message && err.message.includes("NO_SIGNALS")) {
+         errorMsg = "NO INTELLIGENCE FOUND: Try broadening your search.";
+         addLog("INFO: No signals detected in current sector.");
+      }
+
+      setError(errorMsg);
+      addLog(`CRITICAL ERROR: ${err.message || 'Matrix Desync'}`);
     } finally {
       setLoading(false);
       setLoadingStep('');

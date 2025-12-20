@@ -54,7 +54,7 @@ export interface SearchResult {
   };
 }
 
-export type SearchType = 'topic' | 'user-id' | 'signal-phone' | 'medical-recon' | 'deep-scan' | 'mention-tracker';
+export type SearchType = 'topic' | 'user-id' | 'signal-phone' | 'medical-recon' | 'deep-scan' | 'mention-tracker' | 'specialty-hunt';
 
 export interface SearchParams {
   query: string;
