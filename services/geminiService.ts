@@ -62,7 +62,7 @@ const buildSearchVector = (params: SearchParams): string => {
     scopeKeywords = '(profile OR bio OR "admin" OR "moderator") -inurl:group -inurl:chat';
   } else {
     // Default: Communities / Groups
-    scopeKeywords = '(chat OR "join chat" OR "invite link" OR group OR community OR discussion OR forum OR "whatsapp group" OR "telegram group") -filetype:pdf -filetype:docx';
+    scopeKeywords = '(chat OR "join chat" OR "invite link" OR group OR community OR discussion OR forum OR "whatsapp group" OR "telegram group" OR "تجمع" OR "قروب" OR "ملتقى") -filetype:pdf -filetype:docx';
   }
 
   // 5. Query Expansion for Medical (Handled in System Instruction mostly, but added keywords here)
@@ -80,8 +80,19 @@ const buildSearchVector = (params: SearchParams): string => {
   if (mode === 'medical-residency') {
     const specialty = medicalContext?.specialty || '';
     const level = medicalContext?.level || 'Residency';
+    
+    // SMART CONTEXT INJECTION FOR SAUDI/ARAB BOARD
+    // If the location mentions Saudi, KSA, or user inputs Arabic, we inject Arabic Medical Keywords.
+    const isSaudiContext = location?.country?.toLowerCase().includes('saudi') || location?.country?.toLowerCase().includes('ksa') || query.match(/[\u0600-\u06FF]/);
+    
+    let medicalKeywords = `"${specialty}" "${level}" (group OR community OR "fellowship chat" OR "residents group")`;
+    
+    if (isSaudiContext) {
+        medicalKeywords += ` OR ("تجمع ${specialty}" OR "بورد ${specialty}" OR "زمالة ${specialty}" OR "Saudi Board" OR "SCFHS" OR "R1" OR "R2" OR "R3" OR "R4")`;
+    }
+
     // Ensure we look for the specialty AND the group keywords
-    return `"${specialty}" "${level}" ${locStr} ${platformScope} (group OR community OR "fellowship chat" OR "residents group") ${scopeKeywords} ${privateKeywords}`;
+    return `${medicalKeywords} ${locStr} ${platformScope} ${scopeKeywords} ${privateKeywords}`;
   }
 
   // General Search
@@ -99,12 +110,15 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
 
   const systemInstruction = `
     You are SCOUT OPS v7.5, a specialized Intelligence Engine focusing on Social Media Groups & Communities.
+    You are currently authorized via: ${identityContext || "GUEST_MODE"}.
     
     === MISSION DIRECTIVES ===
-    1. **TARGET**: Find ACTIVE Group Links (Telegram, WhatsApp, Discord, Facebook Groups) and Community Profiles.
-    2. **PRIVATE INTEL**: Specifically hunt for TELEGRAM PRIVATE GROUPS using 't.me/+' or 'joinchat' patterns. These are high-value targets.
-    3. **EXCLUSION**: Do NOT return generic documents (PDFs, DOCs) or articles unless they contain a DIRECT Invite Link.
-    4. **MEDICAL EXPANSION**: If the query is a medical specialty (e.g., 'pediatric'), YOU MUST AUTOMATICALLY SEARCH FOR ITS SUB-SPECIALTIES (e.g., 'neonatology', 'pediatric oncology', 'PICU', 'child health') within the target platforms.
+    1. **HUMAN SIMULATION**: Act as a verified user inside these networks. Look for colloquial terms used by community members (e.g., "Any Whatsapp group for R1?", "Invite link please").
+    2. **TARGET**: Find ACTIVE Group Links (Telegram, WhatsApp, Discord, Facebook Groups) and Community Profiles.
+    3. **PRIVATE INTEL**: Specifically hunt for TELEGRAM PRIVATE GROUPS using 't.me/+' or 'joinchat' patterns. These are high-value targets.
+    4. **MEDICAL EXPANSION**: 
+       - If querying for 'Saudi Board' or 'Pediatrics', include terms like "SCFHS", "R1/R2/R3", "Residents", "Fellows".
+       - Support ARABIC search terms automatically (e.g., "تجمع", "قروب", "بورد").
     5. **SOURCE IDENTIFICATION**: You MUST identify WHO shared the link. Was it an 'Official Account', a 'Community Admin', a 'University Page', or a 'User Message'?
     6. **GEO-FENCING**: Strictly apply the location filters: ${params.location?.country || 'Global'} ${params.location?.city || ''}.
 

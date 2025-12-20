@@ -4,17 +4,17 @@ import { searchGlobalIntel } from './services/geminiService';
 import { IntelLink, SearchResult, PlatformType, SearchMode, SearchParams, ConnectedIdentity, SearchScope } from './types';
 
 // --- Assets & Data ---
-const ALL_PLATFORMS: { id: PlatformType; icon: string; color: string }[] = [
-  { id: 'Telegram', icon: 'fa-brands fa-telegram', color: 'text-sky-400' },
-  { id: 'WhatsApp', icon: 'fa-brands fa-whatsapp', color: 'text-emerald-400' },
-  { id: 'Discord', icon: 'fa-brands fa-discord', color: 'text-indigo-400' },
-  { id: 'LinkedIn', icon: 'fa-brands fa-linkedin', color: 'text-blue-500' },
-  { id: 'X', icon: 'fa-brands fa-x-twitter', color: 'text-white' },
-  { id: 'Facebook', icon: 'fa-brands fa-facebook', color: 'text-blue-600' },
-  { id: 'Instagram', icon: 'fa-brands fa-instagram', color: 'text-pink-500' },
-  { id: 'Reddit', icon: 'fa-brands fa-reddit', color: 'text-orange-500' },
-  { id: 'TikTok', icon: 'fa-brands fa-tiktok', color: 'text-pink-400' },
-  { id: 'Signal', icon: 'fa-solid fa-comment-dots', color: 'text-blue-300' },
+const ALL_PLATFORMS: { id: PlatformType; icon: string; color: string; hoverColor: string }[] = [
+  { id: 'Telegram', icon: 'fa-brands fa-telegram', color: 'text-sky-400', hoverColor: 'hover:bg-sky-500' },
+  { id: 'WhatsApp', icon: 'fa-brands fa-whatsapp', color: 'text-emerald-400', hoverColor: 'hover:bg-emerald-500' },
+  { id: 'X', icon: 'fa-brands fa-x-twitter', color: 'text-white', hoverColor: 'hover:bg-slate-700' },
+  { id: 'Facebook', icon: 'fa-brands fa-facebook', color: 'text-blue-600', hoverColor: 'hover:bg-blue-600' },
+  { id: 'LinkedIn', icon: 'fa-brands fa-linkedin', color: 'text-blue-500', hoverColor: 'hover:bg-blue-500' },
+  { id: 'Discord', icon: 'fa-brands fa-discord', color: 'text-indigo-400', hoverColor: 'hover:bg-indigo-500' },
+  { id: 'Instagram', icon: 'fa-brands fa-instagram', color: 'text-pink-500', hoverColor: 'hover:bg-pink-600' },
+  { id: 'Reddit', icon: 'fa-brands fa-reddit', color: 'text-orange-500', hoverColor: 'hover:bg-orange-600' },
+  { id: 'TikTok', icon: 'fa-brands fa-tiktok', color: 'text-pink-400', hoverColor: 'hover:bg-pink-500' },
+  { id: 'Signal', icon: 'fa-solid fa-comment-dots', color: 'text-blue-300', hoverColor: 'hover:bg-blue-400' },
 ];
 
 const SEARCH_MODES: { id: SearchMode; label: string; icon: string }[] = [
@@ -42,6 +42,126 @@ const ScanOverlay = () => (
 
 // --- Sub-Components ---
 
+const LoginGate = ({ onLogin }: { onLogin: (identity: ConnectedIdentity) => void }) => {
+  const [loadingPlatform, setLoadingPlatform] = useState<PlatformType | null>(null);
+  const [status, setStatus] = useState("INITIALIZING SECURE GATEWAY...");
+
+  const handleAuth = (platform: PlatformType) => {
+    setLoadingPlatform(platform);
+    
+    // Simulation sequence
+    const sequence = [
+      { t: 0, msg: `CONTACTING ${platform.toUpperCase()} SERVERS...` },
+      { t: 800, msg: "HANDSHAKE ESTABLISHED. VERIFYING KEY..." },
+      { t: 1800, msg: "REQUESTING USER PERMISSIONS..." },
+      { t: 2500, msg: "FETCHING PROFILE DATA..." },
+      { t: 3200, msg: "ACCESS GRANTED." }
+    ];
+
+    sequence.forEach(({ t, msg }) => {
+      setTimeout(() => setStatus(msg), t);
+    });
+
+    setTimeout(() => {
+      onLogin({
+        platform,
+        type: 'handle',
+        value: 'AuthorizedUser_X7',
+        verifiedAt: new Date().toISOString()
+      });
+    }, 3500);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-[#020408] flex items-center justify-center p-4">
+      <ScanOverlay />
+      
+      {/* Background World Map Effect */}
+      <div className="absolute inset-0 opacity-10 flex items-center justify-center pointer-events-none">
+         <i className="fa-solid fa-earth-americas text-[600px] animate-pulse"></i>
+      </div>
+
+      <div className="max-w-md w-full relative z-10">
+        <div className="bg-[#0b0d12]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-[0_0_100px_rgba(79,70,229,0.15)] relative overflow-hidden">
+          
+          {/* Header */}
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(79,70,229,0.5)]">
+              <i className="fa-solid fa-shield-halved text-3xl text-white"></i>
+            </div>
+            <h1 className="text-2xl font-black text-white tracking-wider mb-2">ACCESS CONTROL</h1>
+            <p className="text-[10px] text-slate-400 font-mono tracking-[0.2em] uppercase">
+              Identify yourself to proceed
+            </p>
+          </div>
+
+          {/* Login Options */}
+          <div className="space-y-3">
+            {loadingPlatform ? (
+              <div className="py-12 text-center space-y-4">
+                 <div className="relative w-16 h-16 mx-auto">
+                    <div className="absolute inset-0 border-4 border-indigo-500/30 rounded-full"></div>
+                    <div className="absolute inset-0 border-t-4 border-indigo-500 rounded-full animate-spin"></div>
+                    <i className={`fa-brands fa-${loadingPlatform.toLowerCase()} absolute inset-0 flex items-center justify-center text-xl text-white`}></i>
+                 </div>
+                 <div className="text-[10px] font-mono text-indigo-400 animate-pulse uppercase">{status}</div>
+              </div>
+            ) : (
+              <>
+                <button 
+                  onClick={() => handleAuth('Telegram')}
+                  className="w-full bg-[#2AABEE]/10 hover:bg-[#2AABEE] border border-[#2AABEE]/30 hover:border-[#2AABEE] text-[#2AABEE] hover:text-white py-4 rounded-xl transition-all duration-300 group flex items-center justify-between px-6"
+                >
+                  <span className="font-bold tracking-wide flex items-center gap-3">
+                    <i className="fa-brands fa-telegram text-xl"></i> Login with Telegram
+                  </span>
+                  <i className="fa-solid fa-arrow-right opacity-0 group-hover:opacity-100 transition-opacity transform -translate-x-2 group-hover:translate-x-0"></i>
+                </button>
+
+                <button 
+                  onClick={() => handleAuth('Facebook')}
+                  className="w-full bg-[#1877F2]/10 hover:bg-[#1877F2] border border-[#1877F2]/30 hover:border-[#1877F2] text-[#1877F2] hover:text-white py-4 rounded-xl transition-all duration-300 group flex items-center justify-between px-6"
+                >
+                   <span className="font-bold tracking-wide flex items-center gap-3">
+                    <i className="fa-brands fa-facebook text-xl"></i> Login with Facebook
+                  </span>
+                  <i className="fa-solid fa-arrow-right opacity-0 group-hover:opacity-100 transition-opacity transform -translate-x-2 group-hover:translate-x-0"></i>
+                </button>
+
+                <button 
+                  onClick={() => handleAuth('X')}
+                  className="w-full bg-white/5 hover:bg-black border border-white/20 hover:border-white text-slate-300 hover:text-white py-4 rounded-xl transition-all duration-300 group flex items-center justify-between px-6"
+                >
+                   <span className="font-bold tracking-wide flex items-center gap-3">
+                    <i className="fa-brands fa-x-twitter text-xl"></i> Login with X
+                  </span>
+                  <i className="fa-solid fa-arrow-right opacity-0 group-hover:opacity-100 transition-opacity transform -translate-x-2 group-hover:translate-x-0"></i>
+                </button>
+
+                <div className="relative py-4">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
+                  <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-[#0b0d12] px-2 text-slate-500">Or continue as guest</span></div>
+                </div>
+
+                <button 
+                  onClick={() => onLogin({ platform: 'Signal', type: 'handle', value: 'Guest_User', verifiedAt: new Date().toISOString() })}
+                  className="w-full py-3 text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors"
+                >
+                  Enter Restricted Mode
+                </button>
+              </>
+            )}
+          </div>
+          
+          <div className="mt-8 text-center">
+            <p className="text-[9px] text-slate-600 font-mono">SECURE CONNECTION // 256-BIT ENCRYPTION</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ConnectModal = ({ 
   platform, 
   onClose, 
@@ -51,32 +171,32 @@ const ConnectModal = ({
   onClose: () => void, 
   onConnect: (id: ConnectedIdentity) => void 
 }) => {
-  const [value, setValue] = useState('');
-  const [type, setType] = useState<'phone'|'email'|'handle'>('phone');
-  const [verifying, setVerifying] = useState(false);
+  const [step, setStep] = useState<'select' | 'verifying' | 'success'>('select');
+  const [selectedMethod, setSelectedMethod] = useState<'app' | 'manual'>('app');
+  const [manualValue, setManualValue] = useState('');
 
   if (!platform) return null;
 
-  const handleConnect = () => {
-    if(!value) return;
-    setVerifying(true);
+  const handleAppConnect = () => {
+    setStep('verifying');
+    // Simulate OAuth Delay
     setTimeout(() => {
-      onConnect({
-        platform,
-        type,
-        value,
-        verifiedAt: new Date().toISOString()
-      });
-      setVerifying(false);
-      onClose();
-    }, 1500);
+        setStep('success');
+        setTimeout(() => {
+            onConnect({
+                platform,
+                type: 'handle',
+                value: `Verified_${platform}_User`,
+                verifiedAt: new Date().toISOString()
+            });
+            onClose();
+        }, 1000);
+    }, 2000);
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-300">
       <div className="bg-[#0b0d12] border border-indigo-500/30 rounded-3xl w-full max-w-md p-8 relative overflow-hidden shadow-[0_0_50px_rgba(79,70,229,0.15)]">
-        <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-indigo-500/50 rounded-tl-xl m-4"></div>
-        <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-indigo-500/50 rounded-br-xl m-4"></div>
         
         <div className="flex justify-between items-center mb-8 relative z-10">
           <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
@@ -88,57 +208,68 @@ const ConnectModal = ({
           </button>
         </div>
 
-        <div className="space-y-8 relative z-10">
-          <div className="flex gap-2 p-1.5 bg-black/60 rounded-xl border border-white/5">
-            {(['phone', 'email', 'handle'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setType(t)}
-                className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
-                  type === t 
-                    ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' 
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+        <div className="space-y-6 relative z-10">
+            {step === 'select' && (
+                <>
+                    <button 
+                        onClick={handleAppConnect}
+                        className="w-full bg-white/5 hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-500 text-white p-4 rounded-xl flex items-center gap-4 transition-all group"
+                    >
+                        <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                            <i className={`fa-brands fa-${platform?.toLowerCase()} text-xl`}></i>
+                        </div>
+                        <div className="text-left">
+                            <div className="text-sm font-bold">Connect via {platform} App</div>
+                            <div className="text-[10px] text-slate-400">Launch authentication gateway</div>
+                        </div>
+                        <i className="fa-solid fa-chevron-right ml-auto text-slate-500 group-hover:text-white"></i>
+                    </button>
 
-          <div>
-             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex justify-between">
-               <span>{type === 'phone' ? 'Secure Number' : type === 'email' ? 'Verified Email' : 'Public Handle'}</span>
-               <span className="text-indigo-500/50">ENCRYPTED INPUT</span>
-             </label>
-             <div className="relative group">
-               <input 
-                 type={type === 'email' ? 'email' : 'text'}
-                 value={value}
-                 onChange={e => setValue(e.target.value)}
-                 className="w-full bg-[#050608] border border-indigo-500/20 focus:border-indigo-500/80 rounded-xl px-5 py-4 text-base font-mono text-white outline-none transition-all placeholder:text-slate-800 focus:shadow-[0_0_20px_rgba(79,70,229,0.2)]"
-                 placeholder="Input credentials..."
-               />
-               <div className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-500/30 group-focus-within:text-indigo-500 transition-colors">
-                 <i className="fa-solid fa-lock"></i>
-               </div>
-             </div>
-          </div>
+                    <div className="relative">
+                         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
+                         <div className="relative flex justify-center text-[9px] uppercase"><span className="bg-[#0b0d12] px-2 text-slate-600">Or enter manually</span></div>
+                    </div>
 
-          <button 
-            onClick={handleConnect}
-            disabled={verifying || !value}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.02] active:scale-95 text-white py-5 rounded-xl text-xs font-black uppercase tracking-[0.25em] transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(79,70,229,0.3)] disabled:opacity-50"
-          >
-            {verifying ? (
-              <span className="flex items-center gap-3 animate-pulse">
-                <i className="fa-solid fa-fingerprint fa-beat-fade text-lg"></i> AUTHORIZING...
-              </span>
-            ) : (
-              <>
-                ESTABLISH CONNECTION <i className="fa-solid fa-satellite-dish"></i>
-              </>
+                    <div className="group">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase mb-2">Manual Handle / ID</label>
+                        <div className="flex gap-2">
+                             <input 
+                                type="text" 
+                                value={manualValue}
+                                onChange={e => setManualValue(e.target.value)}
+                                className="flex-1 bg-black border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+                                placeholder="@username"
+                             />
+                             <button 
+                                onClick={() => {
+                                    if(manualValue) handleAppConnect();
+                                }}
+                                className="px-4 bg-white/10 hover:bg-white/20 text-white rounded-lg"
+                             >
+                                <i className="fa-solid fa-arrow-right"></i>
+                             </button>
+                        </div>
+                    </div>
+                </>
             )}
-          </button>
+
+            {step === 'verifying' && (
+                <div className="py-12 text-center">
+                    <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <div className="text-sm font-bold text-white">Authenticating...</div>
+                    <div className="text-[10px] text-slate-400 mt-2 font-mono">HANDSHAKE_INITIATED</div>
+                </div>
+            )}
+
+            {step === 'success' && (
+                <div className="py-12 text-center">
+                    <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                        <i className="fa-solid fa-check text-2xl text-black"></i>
+                    </div>
+                    <div className="text-sm font-bold text-white">Connection Established</div>
+                    <div className="text-[10px] text-emerald-400 mt-2 font-mono">UPLINK_SECURE</div>
+                </div>
+            )}
         </div>
       </div>
     </div>
@@ -350,6 +481,9 @@ const FilterSidebar = ({
 // --- Main Application ---
 
 const App: React.FC = () => {
+  // Auth State
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
   // State
   const [mode, setMode] = useState<SearchMode>('discovery');
   const [scope, setScope] = useState<SearchScope>('communities');
@@ -404,6 +538,12 @@ const App: React.FC = () => {
     setIdentities(prev => [...prev.filter(i => i.platform !== id.platform), id]); 
     log(`SECURE HANDSHAKE: ${id.platform} verified.`);
     log(`AUTHORIZATION LEVEL INCREASED.`);
+  };
+
+  const handleLogin = (identity: ConnectedIdentity) => {
+    setIsLoggedIn(true);
+    setIdentities([identity]);
+    log(`ACCESS GRANTED: WELCOME ${identity.value}`);
   };
 
   const handleExport = () => {
@@ -502,6 +642,10 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (!isLoggedIn) {
+      return <LoginGate onLogin={handleLogin} />;
+  }
 
   return (
     <div className="flex h-screen bg-[#010204] text-slate-200 font-['Cairo'] overflow-hidden relative" dir="ltr">
