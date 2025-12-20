@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { searchGlobalIntel } from './services/geminiService';
 import { IntelLink, SearchResult, SearchType, Platform, SearchHistoryItem } from './types';
@@ -10,7 +9,6 @@ const App: React.FC = () => {
   const [hospital, setHospital] = useState('');
   const [searchType, setSearchType] = useState<SearchType>('topic');
   
-  // v7.5 Unified State
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -36,7 +34,7 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<SearchHistoryItem[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('scout_v7.5_ultimate_history');
+    const saved = localStorage.getItem('scout_v7.5_history');
     if (saved) setHistory(JSON.parse(saved));
     const handleResize = () => setIsSidebarOpen(window.innerWidth > 1400);
     window.addEventListener('resize', handleResize);
@@ -96,7 +94,7 @@ const App: React.FC = () => {
 
       setHistory(prev => {
         const next = [newHistoryItem, ...prev.filter(i => i.query !== (finalQuery || hospital))].slice(0, 15);
-        localStorage.setItem('scout_v7.5_ultimate_history', JSON.stringify(next));
+        localStorage.setItem('scout_v7.5_history', JSON.stringify(next));
         return next;
       });
 
@@ -105,7 +103,6 @@ const App: React.FC = () => {
       setError("فشل الاتصال بالشبكة الاستخباراتية. تأكد من إعدادات الاتصال وحاول مرة أخرى.");
       addLog("CRITICAL FAILURE: Neural Link Terminated.");
     } finally {
-      // BULLETPROOF LOADING RESET
       setLoading(false);
       setLoadingStep('');
     }
@@ -113,15 +110,12 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#01040a] text-gray-200 font-cairo overflow-x-hidden selection:bg-indigo-600/50 relative">
-      
-      {/* Tactical Background Layer */}
       <div className="fixed inset-0 pointer-events-none z-0">
          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,#1e1b4b_0%,#01040a_80%)] opacity-50"></div>
          <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
          <div className="absolute inset-0 opacity-[0.05]" style={{backgroundImage: 'linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)', backgroundSize: '60px 60px'}}></div>
       </div>
 
-      {/* Loading Overlay v7.5 - Optimized */}
       {loading && (
         <div className="fixed inset-0 z-[500] flex flex-col items-center justify-center bg-[#01040a]/95 backdrop-blur-3xl animate-fadeIn">
            <div className="w-64 h-64 rounded-full border-2 border-indigo-500/10 flex items-center justify-center relative mb-12 shadow-[0_0_80px_rgba(79,70,229,0.15)]">
@@ -136,7 +130,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Link Verification v7.5 */}
       {confirmingLink && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-black/95 backdrop-blur-2xl animate-fadeIn">
           <div className="bg-[#0c1221] border border-indigo-500/20 rounded-[3rem] p-12 max-w-lg w-full shadow-3xl space-y-8 relative overflow-hidden">
@@ -159,7 +152,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Side Console UI v7.5 */}
       <aside className={`fixed top-0 bottom-0 right-0 z-[120] bg-[#050811]/98 border-l border-white/5 transition-all duration-700 backdrop-blur-4xl ${isSidebarOpen ? 'w-[360px]' : 'w-0 invisible translate-x-full'}`}>
         <div className="p-10 space-y-12 h-full overflow-y-auto flex flex-col no-scrollbar">
           <div className="flex items-center justify-between">
@@ -203,9 +195,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Command Workspace */}
       <main className={`transition-all duration-700 p-6 lg:p-20 max-w-7xl mx-auto flex flex-col relative z-10 ${isSidebarOpen ? 'lg:mr-[360px]' : ''}`}>
-        
         <header className="flex justify-between items-center mb-24">
            <div className="flex items-center gap-8">
               {!isSidebarOpen && (
@@ -225,7 +215,6 @@ const App: React.FC = () => {
            </div>
         </header>
 
-        {/* Recon Form v7.5 */}
         <div className="max-w-4xl mx-auto w-full space-y-16 mb-32">
            <div className="text-center space-y-6">
               <h2 className="text-7xl lg:text-9xl font-black text-white leading-none tracking-tighter uppercase">ULTIMATE <span className="text-indigo-500">RECON</span></h2>
@@ -280,10 +269,8 @@ const App: React.FC = () => {
            </div>
         </div>
 
-        {/* Intelligence Boards v7.5 */}
         {result && (
           <div className="space-y-24 animate-fadeIn pb-64">
-             
              <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                 {[
                   { label: 'Signals Captured', val: result.stats.totalFound, icon: 'fa-bolt', color: 'text-indigo-400' },
@@ -356,7 +343,7 @@ const App: React.FC = () => {
                      ) : (
                        result.messages.map((m, idx) => (
                         <div key={idx} className="bg-[#0c1221] border border-white/5 rounded-[4rem] p-14 flex gap-12 items-start group shadow-2xl animate-fadeIn">
-                           <div className="w-16 h-16 bg-white/[0.03] rounded-2xl flex items-center justify-center text-indigo-500 font-black text-4xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-xl">{m.author[0]}</div>
+                           <div className="w-16 h-16 bg-white/[0.03] rounded-2xl flex items-center justify-center text-indigo-500 font-black text-4xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-xl">{(m.author || "U")[0]}</div>
                            <div className="flex-1">
                               <div className="flex justify-between items-center mb-8">
                                  <span className="text-3xl font-black text-white uppercase tracking-tight">{m.author}</span>
@@ -380,7 +367,7 @@ const App: React.FC = () => {
                         <p className="text-gray-400 leading-relaxed italic text-lg">{result.analysis}</p>
                      </div>
                      {result.sources.map((s, idx) => (
-                       <a key={idx} href={s.uri} target="_blank" className="bg-[#0c1221] border border-white/5 p-12 rounded-[3.5rem] flex items-center justify-between group hover:bg-white/[0.03] transition-all shadow-xl animate-fadeIn">
+                       <a key={idx} href={s.uri} target="_blank" rel="noopener noreferrer" className="bg-[#0c1221] border border-white/5 p-12 rounded-[3.5rem] flex items-center justify-between group hover:bg-white/[0.03] transition-all shadow-xl animate-fadeIn">
                           <span className="text-xl font-black text-gray-300 group-hover:text-indigo-400 truncate max-w-[280px] uppercase tracking-tight leading-none">{s.title}</span>
                           <div className="w-14 h-14 rounded-full bg-white/[0.02] flex items-center justify-center text-gray-800 group-hover:text-white group-hover:bg-indigo-600 transition-all border border-white/5 shadow-2xl">
                              <i className="fa-solid fa-arrow-up-right-from-square"></i>
@@ -393,7 +380,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Tactical Error Handling */}
         {error && (
           <div className="max-w-2xl mx-auto mt-20 p-20 bg-[#0c1221] border border-rose-500/20 rounded-[5rem] text-center shadow-3xl animate-fadeIn">
              <i className="fa-solid fa-triangle-exclamation text-7xl text-rose-500 mb-10 animate-pulse"></i>

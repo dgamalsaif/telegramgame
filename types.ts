@@ -52,6 +52,7 @@ export interface SearchResult {
     privateCount: number;
     activeCount: number;
     hospitalMatches: number;
+    hiddenMatches: number;
   };
 }
 

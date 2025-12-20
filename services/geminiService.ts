@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { SearchResult, IntelLink, IntelMessage, SearchParams, PlatformType } from "../types";
 
@@ -18,6 +17,7 @@ const parseSafeJSON = (text: string): any => {
 
 /**
  * SCOUT CORE v7.5 | The Ultimate OSINT Neural Engine
+ * Enhanced with Deep-Scan v7.6 logic for hidden communities and encrypted signals.
  */
 export const searchGlobalIntel = async (params: SearchParams): Promise<SearchResult> => {
   const apiKey = process.env.API_KEY;
@@ -41,11 +41,14 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   } else if (params.searchType === 'user-id') {
     searchVector = `"${queryBase}" (inurl:profile OR inurl:user OR inurl:id OR "@${queryBase}") (site:telegram.me OR site:t.me OR site:facebook.com OR site:twitter.com OR site:instagram.com OR site:linkedin.com)`;
   } else if (params.searchType === 'deep-scan') {
-    searchVector = `"${queryBase}" ${geoContext} (intext:"join group" OR intext:"invite link" OR "chat history" OR "leaked messages")`;
+    // Expanded deep-scan logic to include hidden and unindexed patterns
+    searchVector = `"${queryBase}" ${geoContext} (intext:"join group" OR intext:"invite link" OR "chat history" OR "leaked messages" OR "hidden community" OR "encrypted messages" OR "unindexed public pages" OR "secret chat")`;
   }
 
   const systemInstruction = `You are SCOUT OPS v7.5 ULTIMATE OSINT ENGINE.
   Your mission is to find digital communities, group links, user profiles, and specific messages across Telegram, WhatsApp, Discord, Facebook, X, Instagram, LinkedIn, and TikTok.
+
+  SPECIAL DIRECTIVE: For 'deep-scan' operations, you MUST explicitly look for 'hidden communities', 'encrypted messages', and 'unindexed public pages' related to the query.
 
   SEARCH PARAMETERS:
   - Target: ${queryBase}
@@ -59,7 +62,8 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
   2. Extract message snippets that appear in the results.
   3. Categorize precisely by platform.
   4. Ensure Geographic relevance to the provided country/town/hospital.
-  5. OUTPUT MUST BE VALID JSON ONLY.
+  5. Identify findings that qualify as 'hidden matches' (unindexed or encrypted references).
+  6. OUTPUT MUST BE VALID JSON ONLY.
 
   JSON Schema:
   {
@@ -67,12 +71,12 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
     "links": [{"title", "description", "url", "platform", "confidence", "isPrivate", "isActive", "location": {"country", "town", "hospital"}, "source": {"name", "uri"}}],
     "messages": [{"content", "author", "platform", "relevance"}],
     "sources": [{"title", "uri"}],
-    "stats": {"totalFound", "privateCount", "activeCount", "hospitalMatches"}
+    "stats": {"totalFound", "privateCount", "activeCount", "hospitalMatches", "hiddenMatches"}
   }`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `[EXECUTE GLOBAL RECON v7.5] SECTOR: ${geoContext} | QUERY: ${queryBase} | VECTOR: ${searchVector}`,
+    contents: `[EXECUTE GLOBAL RECON v7.5 - DEEP SCAN ENHANCED] SECTOR: ${geoContext} | QUERY: ${queryBase} | VECTOR: ${searchVector}`,
     config: {
       systemInstruction,
       tools: [{ googleSearch: {} }],
@@ -106,7 +110,16 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
           },
           messages: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { content: { type: Type.STRING }, author: { type: Type.STRING }, platform: { type: Type.STRING }, relevance: { type: Type.NUMBER } } } },
           sources: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, uri: { type: Type.STRING } } } },
-          stats: { type: Type.OBJECT, properties: { totalFound: { type: Type.NUMBER }, privateCount: { type: Type.NUMBER }, activeCount: { type: Type.NUMBER }, hospitalMatches: { type: Type.NUMBER } } }
+          stats: { 
+            type: Type.OBJECT, 
+            properties: { 
+              totalFound: { type: Type.NUMBER }, 
+              privateCount: { type: Type.NUMBER }, 
+              activeCount: { type: Type.NUMBER }, 
+              hospitalMatches: { type: Type.NUMBER },
+              hiddenMatches: { type: Type.NUMBER }
+            } 
+          }
         }
       }
     },
@@ -151,7 +164,7 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
       links: recoveredLinks,
       messages: [],
       sources: recoveredLinks.map(l => ({ title: l.title, uri: l.url })),
-      stats: { totalFound: recoveredLinks.length, privateCount: recoveredLinks.filter(l => l.isPrivate).length, activeCount: recoveredLinks.length, hospitalMatches: 0 }
+      stats: { totalFound: recoveredLinks.length, privateCount: recoveredLinks.filter(l => l.isPrivate).length, activeCount: recoveredLinks.length, hospitalMatches: 0, hiddenMatches: 0 }
     };
   }
 
@@ -167,7 +180,8 @@ export const searchGlobalIntel = async (params: SearchParams): Promise<SearchRes
       ...resultData.stats,
       totalFound: finalLinks.length,
       activeCount: finalLinks.length,
-      privateCount: finalLinks.filter((l: any) => l.isPrivate).length
+      privateCount: finalLinks.filter((l: any) => l.isPrivate).length,
+      hiddenMatches: resultData.stats.hiddenMatches || 0
     }
   };
 };

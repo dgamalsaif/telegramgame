@@ -1,7 +1,8 @@
 {
   "name": "SCOUT OPS v7.5 | Ultimate OSINT",
-  "description": "نظام الاستخبارات الرقمية المتكامل للبحث عن المجتمعات، الرسائل، والمرافق الطبية عبر كافة المنصات العالمية.",
+  "descriptidescriptionon": "نظام الاستخبارات الرقمية المتكامل للبحث عن المجتمعات، الرسائل، والمرافق الطبية عبر كافة المنصات العالمية.",
   "requestFramePermissions": [
     "geolocation"
-  ]
+  ],
+  "description": ""
 }
